@@ -5,14 +5,14 @@ import { UserProfile, Teacher, Lesson, School, CommunityPost } from "../types";
 
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "vcs-demo-424113.firebaseapp.com",
-    databaseURL: "https://vcs-demo-424113-default-rtdb.firebaseio.com",
-    projectId: "vcs-demo-424113",
-    storageBucket: "vcs-demo-424113.appspot.com",
-    messagingSenderId: "360702442220",
-    appId: "1:360702442220:web:1931327666c07299a9a541",
-    measurementId: "G-L5B9S8B642"
+    apiKey: "AIzaSyBjZhFt0AAxdTBmZrwr1Yk0tX4a4Ln81C0",
+    authDomain: "vcs-6d905.firebaseapp.com",
+    databaseURL: "https://vcs-6d905-default-rtdb.firebaseio.com",
+    projectId: "vcs-6d905",
+    storageBucket: "vcs-6d905.firebasestorage.app",
+    messagingSenderId: "549325931380",
+    appId: "1:549325931380:web:ba969cbe0238012f41e221",
+    measurementId: "G-YBVV0R5N8J"
 };
 
 // Initialize Firebase
