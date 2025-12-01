@@ -1,0 +1,5 @@
+{
+  "name": "vcs",
+  "description": "A comprehensive AI-powered virtual teacher platform. Create custom teacher personas, upload lesson materials, and generate multi-format educational content including diagrams, quizzes, and slides using Gemini Flash.",
+  "requestFramePermissions": []
+}

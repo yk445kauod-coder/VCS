@@ -1,0 +1,104 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VCS: المدرسة السحابية الافتراضية</title>
+    <meta name="description" content="VCS (Virtual Cloud School) - منصة تعليمية ذكية تعمل بالذكاء الاصطناعي." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['"Playpen Sans"', 'cursive', 'sans-serif'],
+            },
+            animation: {
+              'draw': 'draw 2s ease-out forwards',
+            },
+            keyframes: {
+              draw: {
+                '0%': { strokeDasharray: '1000', strokeDashoffset: '1000' },
+                '100%': { strokeDashoffset: '0' },
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Playpen+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      body { 
+        /* Fallback if Tailwind doesn't load immediately */
+        font-family: 'Playpen Sans', cursive; 
+        background-color: #f8fafc; /* Softer background */
+        background-image: radial-gradient(#e0e7ff 0.5px, transparent 0.5px);
+        background-size: 24px 24px;
+      }
+      /* Custom Scrollbar - Modern & Slim */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+      }
+      
+      .gradient-text {
+        background: linear-gradient(135deg, #4f46e5 0%, #ec4899 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      /* Enforce Bold Font for Arabic Contexts */
+      [dir="rtl"] {
+        font-weight: 600; /* SemiBold by default for Arabic */
+      }
+      h1, h2, h3, h4, h5, h6 {
+        font-weight: 800 !important; /* ExtraBold for headers */
+      }
+
+      /* SVG Diagram Styles */
+      .diagram-container svg {
+        width: 100%;
+        height: auto;
+        max-height: 500px;
+        font-family: 'Playpen Sans', cursive;
+      }
+      .diagram-node {
+        transition: all 0.3s ease;
+        cursor: pointer;
+      }
+      .diagram-node:hover {
+        filter: brightness(1.1);
+        transform: scale(1.02);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react-markdown": "https://aistudiocdn.com/react-markdown@^10.1.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+    "firebase/database": "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js",
+    "mermaid": "https://aistudiocdn.com/mermaid@^11.12.1",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="text-slate-800 antialiased selection:bg-indigo-100 selection:text-indigo-700 font-sans">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
