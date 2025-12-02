@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Key, ArrowRight, BookOpen } from 'lucide-react';
 
@@ -11,10 +12,11 @@ const ApiKeyManager: React.FC<Props> = ({ onApiKeySet }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (apiKey.trim().length < 10) {
+    if (apiKey.trim().length < 20) { // Basic validation for API key length
       setError('Please enter a valid Gemini API key.');
       return;
     }
+    setError('');
     onApiKeySet(apiKey.trim());
   };
 

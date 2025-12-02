@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
-import { Teacher, Lesson, UserRole, UserProfile } from './types';
-import { saveUserToDB, getUserFromDB, subscribeToTeachers, subscribeToLessons, deleteTeacherFromDB } from './services/firebase';
+import { Teacher, Lesson, UserProfile } from './types';
+import { saveUserToDB, getUserFromDB, subscribeToTeachers, subscribeToLessons } from './services/firebase';
 import WelcomeScreen from './components/WelcomeScreen';
 import SchoolSchedule from './components/SchoolSchedule';
 import SchoolManager from './components/SchoolManager';
@@ -14,10 +15,9 @@ import ApiKeyManager from './components/ApiKeyManager';
 type View = 'create' | 'teachers' | 'history' | 'schedule' | 'school' | 'community';
 
 const App: React.FC = () => {
-  const [apiKey, setApiKey] = useState<string | null>(localStorage.getItem('gemini_api_key'));
+  const [apiKey, setApiKey] = useState<string | null>(() => localStorage.getItem('gemini_api_key'));
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [view, setView] = useState<View>('schedule');
-  const [userRole, setUserRole] = useState<UserRole>('student');
   
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -31,7 +31,6 @@ const App: React.FC = () => {
        getUserFromDB(storedId).then(profile => {
          if (profile) {
            setUserProfile(profile);
-           setUserRole(profile.role);
          } else {
            // Clear invalid ID
            localStorage.removeItem('vcs_uid');
@@ -40,12 +39,10 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Fetch Data when profile is loaded
+  // Fetch Data when profile and API key are available
   useEffect(() => {
     if (userProfile && apiKey) {
-      // Load teachers
       const unsubscribeTeachers = subscribeToTeachers(userProfile.id, userProfile.schoolId, setTeachers);
-      // Load lessons
       const unsubscribeLessons = subscribeToLessons(userProfile.id, userProfile.schoolId, setLessons);
 
       return () => {
@@ -64,14 +61,15 @@ const App: React.FC = () => {
     localStorage.setItem('vcs_uid', profile.id);
     saveUserToDB(profile); // This also saves credentials
     setUserProfile(profile);
-    setUserRole(profile.role);
   };
 
   const handleLogout = () => {
     if (confirm('هل تريد تسجيل الخروج؟')) {
       localStorage.removeItem('vcs_uid');
       setUserProfile(null);
-      // Full reload to clear all state
+      // Optional: also clear the API key on logout
+      // localStorage.removeItem('gemini_api_key');
+      // setApiKey(null);
       window.location.reload();
     }
   };
@@ -108,6 +106,7 @@ const App: React.FC = () => {
   }
   
   const renderView = () => {
+    const userRole = userProfile.role;
     switch (view) {
       case 'community':
         return <CommunityFeed user={userProfile} />;

@@ -6,15 +6,15 @@ let genAI: GoogleGenerativeAI | null = null;
 let model: GenerativeModel | null = null;
 let chatModel: GenerativeModel | null = null;
 
-// This function initializes the AI client with the user's key
+// This function initializes the AI client with the user's key from localStorage
 const getAIClient = () => {
     const apiKey = localStorage.getItem('gemini_api_key');
     if (!apiKey) {
-        throw new Error("Gemini API key not found. Please set it in the application.");
+        throw new Error("Gemini API key not found. Please set it in the application settings.");
     }
     
-    // Initialize if it hasn't been already
-    if (!genAI) {
+    // Initialize if it hasn't been already, or if the key has changed
+    if (!genAI || (genAI as any)._apiKey !== apiKey) {
         genAI = new GoogleGenerativeAI(apiKey);
         model = genAI.getGenerativeModel({
           model: "gemini-1.5-flash-latest",
@@ -25,7 +25,7 @@ const getAIClient = () => {
     }
 
     if (!model || !chatModel) {
-      throw new Error("Failed to initialize Gemini models.");
+      throw new Error("Failed to initialize Gemini models. The API key might be invalid.");
     }
 
     return { model, chatModel };
