@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LessonOutput, QuizQuestion, Teacher, UserRole } from '../types';
+import { LessonOutput, QuizQuestion, Teacher } from '../types';
 import DiagramRenderer from './DiagramRenderer';
 import SmartBoard from './SmartBoard';
 import ChatInterface from './ChatInterface';
@@ -26,6 +26,7 @@ const LessonOutputView: React.FC<Props> = ({ output, teacherId }) => {
   useEffect(() => {
     // This is a workaround to get all teachers for the chat interface,
     // as the main App component only passes school-specific or user-owned teachers.
+    // A better solution might involve a global context or more specific queries.
     const unsub = subscribeToTeachers('', null, setAllTeachers);
     return () => unsub();
   }, []);
@@ -223,44 +224,41 @@ const LessonOutputView: React.FC<Props> = ({ output, teacherId }) => {
                )}
             </div>
 
-            {output.quiz.map((q, qIdx) => {
-                let style = "border-slate-200 hover:border-indigo-300 hover:bg-slate-50";
-                const isSelected = quizAnswers[qIdx] === q.question; // This is a bug, should compare with option
-                return (
-                    <div key={qIdx} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-                    <h4 className="text-xl font-bold text-slate-800 mb-6 flex gap-3">
-                        <span className="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0">{qIdx + 1}</span> 
-                        {q.question}
-                    </h4>
-                    <div className="grid gap-3">
-                        {q.options.map((opt, oIdx) => {
-                            let optStyle = "border-slate-200 hover:border-indigo-300 hover:bg-slate-50";
-                            const isSelectedOpt = quizAnswers[qIdx] === opt;
+            {output.quiz.map((q, qIdx) => (
+              <div key={qIdx} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+                <h4 className="text-xl font-bold text-slate-800 mb-6 flex gap-3">
+                  <span className="bg-indigo-100 text-indigo-700 w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0">{qIdx + 1}</span> 
+                  {q.question}
+                </h4>
+                <div className="grid gap-3">
+                  {q.options.map((opt, oIdx) => {
+                    let optStyle = "border-slate-200 hover:border-indigo-300 hover:bg-slate-50";
+                    const isSelectedOpt = quizAnswers[qIdx] === opt;
 
-                            if (quizSubmitted) {
-                                if (opt === q.correctAnswer) optStyle = "bg-emerald-50 border-emerald-500 text-emerald-700 font-bold";
-                                else if (isSelectedOpt) optStyle = "bg-red-50 border-red-500 text-red-700";
-                                else optStyle = "opacity-50 border-slate-100 cursor-not-allowed";
-                            } else if (isSelectedOpt) {
-                                optStyle = "bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500";
-                            }
-                            
-                            return (
-                            <div 
-                                key={oIdx} 
-                                onClick={() => !quizSubmitted && handleQuizSelect(qIdx, opt)}
-                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex justify-between items-center ${optStyle}`}
-                            >
-                                <span className="font-medium">{opt}</span>
-                                {quizSubmitted && opt === q.correctAnswer && <CheckCircle className="text-emerald-500" />}
-                                {quizSubmitted && isSelectedOpt && opt !== q.correctAnswer && <XCircle className="text-red-500" />}
-                            </div>
-                            );
-                        })}
-                    </div>
-                    </div>
-                );
-            })}
+                    if (quizSubmitted) {
+                      if (opt === q.correctAnswer) optStyle = "bg-emerald-50 border-emerald-500 text-emerald-700 font-bold";
+                      else if (isSelectedOpt) optStyle = "bg-red-50 border-red-500 text-red-700";
+                      else optStyle = "opacity-50 border-slate-100 cursor-not-allowed";
+                    } else if (isSelectedOpt) {
+                      optStyle = "bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500";
+                    }
+                    
+                    return (
+                      <button
+                        key={oIdx} 
+                        onClick={() => !quizSubmitted && handleQuizSelect(qIdx, opt)}
+                        disabled={quizSubmitted}
+                        className={`p-4 rounded-xl border-2 transition-all w-full text-right flex justify-between items-center ${optStyle}`}
+                      >
+                        <span className="font-medium">{opt}</span>
+                        {quizSubmitted && opt === q.correctAnswer && <CheckCircle className="text-emerald-500" />}
+                        {quizSubmitted && isSelectedOpt && opt !== q.correctAnswer && <XCircle className="text-red-500" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
             
             <div className="sticky bottom-4 flex justify-center z-10">
                 {!quizSubmitted ? (

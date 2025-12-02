@@ -1,21 +1,20 @@
-
 import React, { useState, useEffect } from 'react';
 import { Teacher, Lesson, UserRole, UserProfile } from './types';
-import { saveUserToDB, getUserFromDB, subscribeToTeachers, subscribeToLessons, saveTeacherToDB, saveLessonToDB, deleteTeacherFromDB } from './services/firebase';
-import TeacherBuilder from './components/TeacherBuilder';
-import LessonCreator from './components/LessonCreator';
-import LessonOutputView from './components/LessonOutputView';
+import { saveUserToDB, getUserFromDB, subscribeToTeachers, subscribeToLessons, deleteTeacherFromDB } from './services/firebase';
 import WelcomeScreen from './components/WelcomeScreen';
 import SchoolSchedule from './components/SchoolSchedule';
 import SchoolManager from './components/SchoolManager';
 import CommunityFeed from './components/CommunityFeed';
-import { Cloud, Menu, X, Users, Sparkles, History, Calendar, School, Globe, LogOut } from 'lucide-react';
+import { Cloud, Menu, X, Users, Sparkles, History, Calendar, School, Globe, LogOut, Key } from 'lucide-react';
 import TeachersView from './views/TeachersView';
 import HistoryView from './views/HistoryView';
+import LessonCreator from './components/LessonCreator';
+import ApiKeyManager from './components/ApiKeyManager';
 
 type View = 'create' | 'teachers' | 'history' | 'schedule' | 'school' | 'community';
 
 const App: React.FC = () => {
+  const [apiKey, setApiKey] = useState<string | null>(localStorage.getItem('gemini_api_key'));
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [view, setView] = useState<View>('schedule');
   const [userRole, setUserRole] = useState<UserRole>('student');
@@ -43,7 +42,7 @@ const App: React.FC = () => {
 
   // Fetch Data when profile is loaded
   useEffect(() => {
-    if (userProfile) {
+    if (userProfile && apiKey) {
       // Load teachers
       const unsubscribeTeachers = subscribeToTeachers(userProfile.id, userProfile.schoolId, setTeachers);
       // Load lessons
@@ -54,7 +53,12 @@ const App: React.FC = () => {
         unsubscribeLessons();
       };
     }
-  }, [userProfile]);
+  }, [userProfile, apiKey]);
+  
+  const handleApiKeySet = (key: string) => {
+    localStorage.setItem('gemini_api_key', key);
+    setApiKey(key);
+  };
 
   const handleProfileCreate = (profile: UserProfile) => {
     localStorage.setItem('vcs_uid', profile.id);
@@ -95,6 +99,10 @@ const App: React.FC = () => {
     </button>
   );
 
+  if (!apiKey) {
+      return <ApiKeyManager onApiKeySet={handleApiKeySet} />;
+  }
+
   if (!userProfile) {
       return <WelcomeScreen onComplete={handleProfileCreate} />;
   }
@@ -110,9 +118,9 @@ const App: React.FC = () => {
       case 'create':
         return <LessonCreator teachers={teachers} ownerId={userProfile.id} schoolId={userProfile.schoolId} />;
       case 'teachers':
-        return <TeachersView userProfile={userProfile} teachers={teachers} setView={setView} />;
+        return <TeachersView userProfile={userProfile} teachers={teachers} />;
       case 'history':
-        return <HistoryView lessons={lessons} teachers={teachers} userRole={userRole} />;
+        return <HistoryView lessons={lessons} teachers={teachers} />;
       default:
         return <SchoolSchedule teachers={teachers} userRole={userRole} schoolId={userProfile.schoolId} />;
     }
@@ -172,7 +180,13 @@ const App: React.FC = () => {
           </nav>
         </div>
         
-        <div className="p-6">
+        <div className="p-6 border-t border-slate-100 space-y-2">
+            <button 
+               onClick={() => setApiKey(null)}
+               className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 text-sm font-bold w-full p-2"
+             >
+                 <Key size={16} /> تغيير مفتاح API
+             </button>
              <button 
                onClick={handleLogout}
                className="flex items-center gap-2 text-red-400 hover:text-red-600 text-sm font-bold w-full p-2"
@@ -189,7 +203,6 @@ const App: React.FC = () => {
           onClick={() => setMobileMenuOpen(false)}
         ></div>
       )}
-
 
       {/* Main Content */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto h-[calc(100vh-65px)] md:h-screen scroll-smooth">

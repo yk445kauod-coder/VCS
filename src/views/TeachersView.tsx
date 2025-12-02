@@ -7,10 +7,9 @@ import { PlusCircle, Users } from 'lucide-react';
 interface Props {
     userProfile: UserProfile;
     teachers: Teacher[];
-    setView: (view: 'teachers') => void;
 }
 
-const TeachersView: React.FC<Props> = ({ userProfile, teachers, setView }) => {
+const TeachersView: React.FC<Props> = ({ userProfile, teachers }) => {
     const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
 
     const handleSaveTeacher = (teacher: Teacher) => {

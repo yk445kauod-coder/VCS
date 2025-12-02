@@ -1,13 +1,25 @@
 import { GoogleGenerativeAI, Content, Part, GenerationConfig, GenerativeModel } from "@google/generative-ai";
 import { Teacher, LessonOutput, GroundingSource, TeacherPersonality, ChatMessage, LessonLength } from "../types";
 
-// Initialize Gemini
-// Ensure you have GEMINI_API_KEY in your environment
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+let genAI: GoogleGenerativeAI | null = null;
+let model: GenerativeModel | null = null;
 
-const model: GenerativeModel = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash-latest",
-});
+// This function initializes the AI client with the user's key
+const getAIClient = () => {
+    if (model) return model;
+
+    const apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+        throw new Error("Gemini API key not found. Please set it in the application.");
+    }
+    
+    genAI = new GoogleGenerativeAI(apiKey);
+    model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash-latest",
+    });
+
+    return model;
+}
 
 
 const LessonOutputSchema = {
@@ -122,6 +134,8 @@ export const generateLessonContent = async (
   length: LessonLength = 'standard'
 ): Promise<LessonOutput> => {
   
+  const aiModel = getAIClient();
+
   const specificPersonalityInstruction = PERSONALITY_PROMPTS[teacher.personality] || PERSONALITY_PROMPTS[TeacherPersonality.Friendly];
 
   let lengthInstruction = "";
@@ -158,7 +172,7 @@ Additional Instructions:
       parts: [{ text: systemInstruction }, { text: prompt }]
   }];
 
-  const result = await model.generateContent({
+  const result = await aiModel.generateContent({
       contents: contents,
       generationConfig: useSearch ? undefined : generationConfig, // Use JSON mode only when not searching
       tools: tools
@@ -200,6 +214,7 @@ export const generateChatResponse = async (
   history: ChatMessage[],
   newMessage: string
 ): Promise<string> => {
+  const aiModel = getAIClient();
   const specificPersonalityInstruction = PERSONALITY_PROMPTS[teacher.personality];
   const chatSpecificInstruction = CHAT_INSTRUCTIONS[teacher.personality] || "";
 
@@ -214,11 +229,13 @@ Respond directly and conversationally in Arabic.`;
       role: msg.sender === 'user' ? 'user' : 'model'
   }));
 
-  const chat = model.startChat({
+  const chat = aiModel.startChat({
       history: [
           { role: 'user', parts: [{ text: systemInstruction }] },
           { role: 'model', parts: [{ text: "تمام، أنا مستعد للإجابة على أسئلة الطالب."}] }
-      ]
+      ],
+      // The history from the current chat session is managed here,
+      // but `startChat` also accepts a `history` parameter for pre-loading.
   });
 
   const result = await chat.sendMessage(newMessage);
