@@ -18,7 +18,7 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
   
   // Join State
   const [joinCode, setJoinCode] = useState('');
-  const [joinStatus, setJoinStatus] = useState('');
+  const [joinStatus, setJoinStatus] = useState({ type: '', message: '' });
   const [pendingSchoolName, setPendingSchoolName] = useState('');
 
   // Management State
@@ -26,64 +26,72 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
 
   // 1. Fetch User's Current School Status
   useEffect(() => {
+    setLoading(true);
     const unsubscribe = getMySchool(user.id, (data) => {
       setSchool(data);
-      setLoading(false);
-    });
-
-    // Check if user has a pending request
-    if (user.pendingSchoolId && !user.schoolId) {
+      if (user.pendingSchoolId && !data) {
         getSchoolById(user.pendingSchoolId).then(s => {
-            if (s) setPendingSchoolName(s.name);
+          if (s) setPendingSchoolName(s.name);
+          setLoading(false);
         });
-    }
+      } else {
+        setLoading(false);
+      }
+    });
     
     return () => unsubscribe();
-  }, [user.id, user.pendingSchoolId, user.schoolId]);
+  }, [user.id, user.pendingSchoolId]);
 
   // 2. Fetch Details of Pending Students (For Owners)
   useEffect(() => {
-    if (school && school.ownerId === user.id && school.pendingStudents) {
+    if (school && school.ownerId === user.id && school.pendingStudents?.length > 0) {
         const fetchDetails = async () => {
             const users = await Promise.all(
                 school.pendingStudents.map(id => getUserFromDB(id))
             );
-            setPendingStudentsDetails(users.filter(u => u !== null) as UserProfile[]);
+            setPendingStudentsDetails(users.filter((u): u is UserProfile => u !== null));
         };
         fetchDetails();
     } else {
         setPendingStudentsDetails([]);
     }
-  }, [school, user.id]);
+  }, [school]);
 
-  const handleCreate = () => {
-    if (!schoolName) return;
+  const handleCreate = async () => {
+    if (!schoolName.trim()) return;
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const newSchool: School = {
       id: Date.now().toString(),
       ownerId: user.id,
       name: schoolName,
-      description: schoolDesc || '', // Ensure no undefined
+      description: schoolDesc || '',
       code,
-      students: [],
+      students: [user.id], // Owner is automatically a member
       pendingStudents: []
     };
-    createSchool(newSchool, user.id);
+    await createSchool(newSchool, user.id);
+    // The useEffect will handle the state update
   };
 
   const handleJoin = async () => {
-    if (!joinCode) return;
-    setJoinStatus('جاري البحث...');
+    if (!joinCode.trim()) return;
+    setJoinStatus({ type: 'loading', message: 'جاري البحث...' });
     try {
-      const name = await joinSchoolRequest(joinCode.trim(), user.id);
-      setJoinStatus('');
-      setPendingSchoolName(name);
+      const schoolName = await joinSchoolRequest(joinCode.trim().toUpperCase(), user.id);
+      setJoinStatus({ type: 'success', message: `تم إرسال طلبك للانضمام إلى ${schoolName}!`});
+      setPendingSchoolName(schoolName);
     } catch (err: any) {
-      setJoinStatus(`خطأ: ${err.message}`);
+      setJoinStatus({ type: 'error', message: `خطأ: ${err.message}` });
     }
   };
 
-  if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin mx-auto text-indigo-500" /></div>;
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+        alert('تم نسخ كود المدرسة بنجاح!');
+    });
+  };
+
+  if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin mx-auto text-indigo-500 h-10 w-10" /></div>;
 
   // Case 1: User Has a School (Joined or Owned)
   if (school) {
@@ -105,15 +113,12 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
                        <p className="text-indigo-100 text-lg max-w-2xl">{school.description}</p>
                     </div>
 
-                    {school.ownerId === user.id && (
-                      <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center border border-white/20 hover:bg-white/20 transition-colors">
+                    {user.isRealTeacher && (
+                      <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl flex flex-col items-center border border-white/20 hover:bg-white/20 transition-colors shrink-0">
                          <span className="text-xs text-indigo-200 uppercase font-bold mb-1">رمز الانضمام</span>
                          <div 
                            className="flex items-center gap-3 cursor-pointer group" 
-                           onClick={() => {
-                               navigator.clipboard.writeText(school.code);
-                               alert('تم نسخ كود المدرسة');
-                           }}
+                           onClick={() => copyToClipboard(school.code)}
                          >
                             <span className="text-3xl font-mono font-bold tracking-widest text-white group-hover:text-yellow-300 transition-colors">{school.code}</span>
                             <Copy size={20} className="text-indigo-300 group-hover:text-white" />
@@ -125,12 +130,12 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
                  <div className="flex gap-8 mt-10 relative z-10">
                     <div className="flex items-center gap-3 bg-black/20 px-4 py-2 rounded-full">
                        <Users size={20} className="text-emerald-400" />
-                       <span className="font-bold">{school.students ? school.students.length : 0} طالب</span>
+                       <span className="font-bold">{school.students?.length || 0} طالب</span>
                     </div>
-                    {school.ownerId === user.id && (
+                    {user.isRealTeacher && (
                        <div className="flex items-center gap-3 bg-black/20 px-4 py-2 rounded-full border border-yellow-500/30">
                          <div className={`w-2 h-2 bg-yellow-400 rounded-full ${school.pendingStudents?.length ? 'animate-pulse' : ''}`} />
-                         <span className="font-bold text-yellow-100">{school.pendingStudents ? school.pendingStudents.length : 0} طلبات معلقة</span>
+                         <span className="font-bold text-yellow-100">{school.pendingStudents?.length || 0} طلبات معلقة</span>
                        </div>
                     )}
                  </div>
@@ -142,8 +147,8 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
                   <h3 className="font-bold text-xl text-slate-800 mb-6 flex items-center gap-2">
                       <Users className="text-indigo-600" />
                       إدارة طلبات الانضمام
-                      {school.pendingStudents?.length > 0 && (
-                          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">{school.pendingStudents.length}</span>
+                      {pendingStudentsDetails.length > 0 && (
+                          <span className="bg-red-500 text-white text-xs w-6 h-6 flex items-center justify-center rounded-full animate-pulse">{pendingStudentsDetails.length}</span>
                       )}
                   </h3>
                   
@@ -151,16 +156,16 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {pendingStudentsDetails.map(student => (
                         <div key={student.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-indigo-300 transition-colors">
-                           <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold">
+                           <div className="flex items-center gap-3 overflow-hidden">
+                              <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold shrink-0">
                                   {student.name[0]}
                               </div>
-                              <div>
-                                  <p className="font-bold text-slate-800">{student.name}</p>
-                                  <p className="text-xs text-slate-500">{student.gradeLevel}</p>
+                              <div className="overflow-hidden">
+                                  <p className="font-bold text-slate-800 truncate">{student.name}</p>
+                                  <p className="text-xs text-slate-500 truncate">{student.gradeLevel}</p>
                               </div>
                            </div>
-                           <div className="flex gap-2">
+                           <div className="flex gap-2 shrink-0">
                              <button 
                                onClick={() => approveStudent(school.id, student.id)}
                                className="p-2 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-500 hover:text-white transition-all"
@@ -186,26 +191,13 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
                   )}
                 </div>
               )}
-
-              {/* Student View Inside School */}
-              {school.ownerId !== user.id && (
-                <div className="p-10 text-center">
-                  <div className="inline-block p-4 bg-indigo-50 rounded-full mb-4 text-indigo-600">
-                      <SchoolIcon size={40} />
-                  </div>
-                  <h3 className="text-2xl font-bold text-slate-800 mb-2">مرحباً بك في {school.name}</h3>
-                  <p className="text-slate-500 max-w-lg mx-auto">
-                    أنت الآن عضو رسمي. يمكنك تصفح الجدول الدراسي، حضور الدروس، والتفاعل مع زملائك في المجتمع.
-                  </p>
-                </div>
-              )}
            </div>
         </div>
     );
   }
 
   // Case 2: User has a Pending Request
-  if (pendingSchoolName || user.pendingSchoolId) {
+  if (user.pendingSchoolId) {
       return (
           <div className="max-w-2xl mx-auto mt-10">
               <div className="bg-white p-10 rounded-3xl border border-yellow-200 shadow-xl text-center relative overflow-hidden">
@@ -231,11 +223,11 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in zoom-in-95 duration-500">
       <div className="text-center mb-8">
-         <h1 className="text-4xl font-extrabold text-slate-800 mb-2">إدارة المدرسة</h1>
+         <h1 className="text-4xl font-extrabold text-slate-800 mb-2">ابدأ رحلتك التعليمية</h1>
          <p className="text-slate-500">انضم إلى مجتمعك التعليمي أو قم بإنشاء مجتمع جديد</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
          {/* Join School */}
          <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-lg hover:shadow-xl transition-shadow relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-10 -mt-10 transition-transform group-hover:scale-150 duration-700" />
@@ -249,21 +241,23 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
             <div className="space-y-4 relative z-10">
               <input 
                 type="text" 
-                placeholder="كود المدرسة (مثال: X7Y2Z)"
+                placeholder="كود المدرسة (مثال: X7Y2Z9)"
                 className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:bg-white focus:border-emerald-500 outline-none transition-all uppercase font-mono font-bold text-center tracking-widest"
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value)}
               />
               <button 
                 onClick={handleJoin}
-                disabled={!joinCode}
-                className={`w-full py-4 rounded-xl font-bold transition-all shadow-lg ${
-                    joinCode ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                }`}
+                disabled={!joinCode.trim() || joinStatus.type === 'loading'}
+                className="w-full py-4 rounded-xl font-bold transition-all shadow-lg disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
               >
-                إرسال طلب الانضمام
+                {joinStatus.type === 'loading' ? <Loader2 className="animate-spin mx-auto"/> : 'إرسال طلب الانضمام'}
               </button>
-              {joinStatus && <p className="text-sm font-bold text-center text-indigo-600 bg-indigo-50 p-3 rounded-xl animate-pulse">{joinStatus}</p>}
+              {joinStatus.message && (
+                  <p className={`text-sm font-bold text-center p-3 rounded-xl ${joinStatus.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                      {joinStatus.message}
+                  </p>
+              )}
             </div>
          </div>
 
@@ -295,20 +289,18 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
                 />
                 <button 
                   onClick={handleCreate}
-                  disabled={!schoolName}
-                  className={`w-full py-4 rounded-xl font-bold transition-all shadow-lg ${
-                    schoolName ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
+                  disabled={!schoolName.trim()}
+                  className="w-full py-4 rounded-xl font-bold transition-all shadow-lg disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200"
                 >
                   إنشاء المدرسة
                 </button>
               </div>
            </div>
          ) : (
-           <div className="bg-slate-50 p-8 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center opacity-70 hover:opacity-100 transition-opacity">
+           <div className="bg-slate-50 p-8 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center opacity-70">
               <SchoolIcon size={48} className="text-slate-300 mb-4" />
               <h3 className="font-bold text-xl text-slate-600 mb-2">خاص بالمعلمين</h3>
-              <p className="text-slate-400 max-w-xs">فقط حسابات المعلمين يمكنها إنشاء مدارس جديدة.</p>
+              <p className="text-slate-400 max-w-xs">فقط حسابات المعلمين يمكنها إنشاء مدارس جديدة. يمكنك الانضمام إلى مدرسة موجودة باستخدام الكود.</p>
            </div>
          )}
       </div>
@@ -317,3 +309,5 @@ const SchoolManager: React.FC<Props> = ({ user }) => {
 };
 
 export default SchoolManager;
+
+    

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { checkUserCredentials } from '../services/firebase';
-import { Cloud, ArrowRight, User, UserCog, Lock, KeyRound, Loader2 } from 'lucide-react';
+import { Cloud, ArrowRight, User, UserCog, Lock, Loader2 } from 'lucide-react';
 
 interface Props {
   onComplete: (profile: UserProfile) => void;
@@ -27,35 +27,33 @@ const WelcomeScreen: React.FC<Props> = ({ onComplete }) => {
 
     try {
       if (isLogin) {
-        // LOGIN LOGIC
-        if (!username || !password) throw new Error("يرجى إدخال اسم المستخدم وكلمة المرور");
+        // --- LOGIN LOGIC ---
+        if (!username || !password) throw new Error("Please enter a username and password.");
         
         const user = await checkUserCredentials(username);
-        
         if (!user) {
-          throw new Error("اسم المستخدم غير موجود");
+          throw new Error("Username not found.");
         }
-        
         if (user.password !== password) {
-          throw new Error("كلمة المرور غير صحيحة");
+          throw new Error("Incorrect password.");
         }
 
         onComplete(user);
 
       } else {
-        // SIGNUP LOGIC
-        if (!name.trim() || !username.trim() || !password.trim()) throw new Error("جميع الحقول مطلوبة");
-        
-        // Check if username taken
+        // --- SIGNUP LOGIC ---
+        if (!name.trim() || !username.trim() || !password.trim()) throw new Error("All fields are required.");
+        if (!isRealTeacher && !gradeLevel.trim()) throw new Error("Please enter your grade level.");
+
         const existing = await checkUserCredentials(username);
-        if (existing) throw new Error("اسم المستخدم محجوز مسبقاً");
+        if (existing) throw new Error("This username is already taken.");
 
         const newUser: UserProfile = {
-          id: username, // Username is the ID in Firebase for simplicity
+          id: username, // Use username as the unique ID
           username,
           password,
           name,
-          gradeLevel: isRealTeacher ? 'معلم' : gradeLevel,
+          gradeLevel: isRealTeacher ? 'Teacher' : gradeLevel,
           role: isRealTeacher ? 'creator' : 'student',
           isRealTeacher,
           createdAt: Date.now()
@@ -69,6 +67,15 @@ const WelcomeScreen: React.FC<Props> = ({ onComplete }) => {
       setLoading(false);
     }
   };
+  
+  const resetForms = () => {
+    setError('');
+    setName('');
+    setUsername('');
+    setPassword('');
+    setGradeLevel('');
+    setIsRealTeacher(false);
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 flex items-center justify-center p-4" dir="rtl">
@@ -89,13 +96,13 @@ const WelcomeScreen: React.FC<Props> = ({ onComplete }) => {
 
           <div className="flex bg-black/20 p-1 rounded-xl mb-4">
              <button 
-               onClick={() => { setIsLogin(true); setError(''); }}
+               onClick={() => { setIsLogin(true); resetForms(); }}
                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${isLogin ? 'bg-white text-indigo-900 shadow-md' : 'text-indigo-200 hover:text-white'}`}
              >
                تسجيل الدخول
              </button>
              <button 
-               onClick={() => { setIsLogin(false); setError(''); }}
+               onClick={() => { setIsLogin(false); resetForms(); }}
                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${!isLogin ? 'bg-white text-indigo-900 shadow-md' : 'text-indigo-200 hover:text-white'}`}
              >
                حساب جديد
@@ -111,6 +118,7 @@ const WelcomeScreen: React.FC<Props> = ({ onComplete }) => {
                 <input 
                   type="text"
                   required
+                  autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
                   className="w-full pr-12 pl-4 py-3 bg-white/5 border border-indigo-300/30 rounded-xl text-white placeholder-indigo-300/50 focus:bg-white/10 focus:border-white focus:outline-none transition-all font-bold text-left ltr"
@@ -125,6 +133,7 @@ const WelcomeScreen: React.FC<Props> = ({ onComplete }) => {
                 <input 
                   type="password"
                   required
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pr-12 pl-4 py-3 bg-white/5 border border-indigo-300/30 rounded-xl text-white placeholder-indigo-300/50 focus:bg-white/10 focus:border-white focus:outline-none transition-all font-bold text-left"
@@ -140,6 +149,7 @@ const WelcomeScreen: React.FC<Props> = ({ onComplete }) => {
                     <input 
                     type="text"
                     required
+                    autoComplete="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full px-4 py-3 bg-white/5 border border-indigo-300/30 rounded-xl text-white placeholder-indigo-300/50 focus:bg-white/10 focus:border-white focus:outline-none transition-all font-bold text-right"
@@ -207,3 +217,5 @@ const WelcomeScreen: React.FC<Props> = ({ onComplete }) => {
 };
 
 export default WelcomeScreen;
+
+    

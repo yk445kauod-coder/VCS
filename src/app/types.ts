@@ -13,36 +13,36 @@ export type LessonLength = 'brief' | 'standard' | 'detailed';
 
 export interface UserProfile {
   id: string; // Firebase ID (Username)
-  username: string; // Display/Login Username
-  password?: string; // Simple password protection
+  username: string;
+  password?: string; // For login simulation only
   name: string;
-  gradeLevel: string; // e.g., "الصف العاشر"
-  role: UserRole; // Stored role preference
-  isRealTeacher?: boolean; // If true, they can create schools
-  schoolId?: string | null; // ID of the school they belong to
-  pendingSchoolId?: string; // ID of school requested to join
+  gradeLevel: string;
+  role: UserRole;
+  isRealTeacher?: boolean;
+  schoolId?: string | null;
+  pendingSchoolId?: string | null;
   createdAt: number;
 }
 
 export interface School {
   id: string;
-  ownerId: string; // The Real Teacher who created it
-  name:string;
-  code: string; // Unique join code
+  ownerId: string;
+  name: string;
+  code: string;
   description: string;
-  students: string[]; // Array of UserProfile IDs
-  pendingStudents: string[]; // Array of UserProfile IDs waiting for approval
+  students: string[];
+  pendingStudents: string[];
 }
 
 export interface Teacher {
   id: string;
-  ownerId: string; // User ID who created this AI teacher
+  ownerId: string;
   name: string;
   subject: string;
   personality: TeacherPersonality;
   avatarColor: string;
   avatarIcon?: string;
-  schoolId?: string | null; // If part of a school
+  schoolId?: string | null;
 }
 
 export interface QuizQuestion {
@@ -61,21 +61,15 @@ export interface GroundingSource {
   uri: string;
 }
 
-export interface InteractiveElement {
-    type: string;
-    code: string;
-}
-
 export interface LessonOutput {
   explanation: string;
   summary: string;
   visualDiagram: string;
-  interactiveElement?: string;
+  interactiveElement?: string | null;
   quiz: QuizQuestion[];
   slides: SlideContent[];
   infographicData: string[];
   groundingUrls?: GroundingSource[];
-  mermaidCode?: string;
 }
 
 export interface Lesson {
@@ -87,7 +81,6 @@ export interface Lesson {
   length: LessonLength;
   output: LessonOutput | null;
   createdAt: number;
-  isPublic?: boolean; // For community sharing
   schoolId?: string | null;
 }
 
@@ -100,11 +93,10 @@ export interface ChatMessage {
 
 export interface ScheduleItem {
   id: string;
-  day: string; // Sunday, Monday, etc.
-  timeSlot: string; // "09:00 AM"
+  day: string;
+  timeSlot: string;
   teacherId: string;
   subject: string;
-  schoolId?: string; // Global schedule if part of a school
 }
 
 export interface CommunityPost {
@@ -112,8 +104,9 @@ export interface CommunityPost {
   authorId: string;
   authorName: string;
   content: string;
-  lessonId?: string; // Optional attachment
   likes: number;
-  comments: { author: string; text: string }[];
+  comments: { authorId: string; authorName: string; text: string }[];
   createdAt: number;
 }
+
+    
