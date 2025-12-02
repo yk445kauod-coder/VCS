@@ -91,5 +91,3 @@ const HistoryView: React.FC<Props> = ({ lessons, teachers }) => {
 };
 
 export default HistoryView;
-
-    

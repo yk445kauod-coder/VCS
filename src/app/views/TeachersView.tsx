@@ -29,11 +29,14 @@ const TeachersView: React.FC<Props> = ({ userProfile, teachers }) => {
         setEditingTeacher(null);
     };
 
+    // This state determines if we are in "create" mode.
+    const isCreating = editingTeacher !== null && !editingTeacher.id;
+
     if (editingTeacher) {
         return (
             <div className="animate-in fade-in slide-in-from-right-8 duration-300">
                 <TeacherBuilder 
-                    existingTeacher={editingTeacher}
+                    existingTeacher={isCreating ? null : editingTeacher}
                     onSave={handleSaveTeacher}
                     onCancel={() => setEditingTeacher(null)}
                     onDelete={handleDeleteTeacher}
@@ -54,7 +57,7 @@ const TeachersView: React.FC<Props> = ({ userProfile, teachers }) => {
                     </p>
                 </div>
                 <button
-                    onClick={() => setEditingTeacher({} as Teacher)} // Open builder with an empty teacher object
+                    onClick={() => setEditingTeacher({} as Teacher)} // Open builder with an empty teacher object to signify creation
                     className="px-6 py-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 transition-all hover:scale-105 shrink-0"
                 >
                     <PlusCircle size={20} /> إضافة معلم
@@ -100,5 +103,3 @@ const TeachersView: React.FC<Props> = ({ userProfile, teachers }) => {
 };
 
 export default TeachersView;
-
-    

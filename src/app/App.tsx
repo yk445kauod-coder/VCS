@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Teacher, Lesson, UserRole, UserProfile } from './types';
+import { Teacher, Lesson, UserProfile } from './types';
 import { saveUserToDB, getUserFromDB, subscribeToTeachers, subscribeToLessons } from './services/firebase';
 import WelcomeScreen from './components/WelcomeScreen';
 import SchoolSchedule from './components/SchoolSchedule';
@@ -223,5 +223,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
-    

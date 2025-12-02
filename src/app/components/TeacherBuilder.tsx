@@ -7,7 +7,7 @@ import { Save, User, BookOpen, Trash2, AlertCircle, Sparkles, X } from 'lucide-r
 interface Props {
   onSave: (teacher: Teacher) => void;
   onCancel: () => void;
-  existingTeacher?: Teacher | null; // Allow null
+  existingTeacher?: Teacher | null; // Allow null for creation
   onDelete?: (id: string) => void;
 }
 
@@ -198,5 +198,3 @@ const TeacherBuilder: React.FC<Props> = ({ onSave, onCancel, existingTeacher, on
 };
 
 export default TeacherBuilder;
-
-    
