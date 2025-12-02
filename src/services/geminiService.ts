@@ -1,26 +1,35 @@
-import { GoogleGenerativeAI, Content, Part, GenerationConfig, GenerativeModel } from "@google/generative-ai";
+
+import { GoogleGenerativeAI, Content, GenerationConfig, GenerativeModel } from "@google/generative-ai";
 import { Teacher, LessonOutput, GroundingSource, TeacherPersonality, ChatMessage, LessonLength } from "../types";
 
 let genAI: GoogleGenerativeAI | null = null;
 let model: GenerativeModel | null = null;
+let chatModel: GenerativeModel | null = null;
 
 // This function initializes the AI client with the user's key
 const getAIClient = () => {
-    if (model) return model;
-
     const apiKey = localStorage.getItem('gemini_api_key');
     if (!apiKey) {
         throw new Error("Gemini API key not found. Please set it in the application.");
     }
     
-    genAI = new GoogleGenerativeAI(apiKey);
-    model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash-latest",
-    });
+    // Initialize if it hasn't been already
+    if (!genAI) {
+        genAI = new GoogleGenerativeAI(apiKey);
+        model = genAI.getGenerativeModel({
+          model: "gemini-1.5-flash-latest",
+        });
+        chatModel = genAI.getGenerativeModel({
+          model: "gemini-1.5-flash-latest"
+        });
+    }
 
-    return model;
+    if (!model || !chatModel) {
+      throw new Error("Failed to initialize Gemini models.");
+    }
+
+    return { model, chatModel };
 }
-
 
 const LessonOutputSchema = {
   type: "OBJECT",
@@ -39,7 +48,8 @@ const LessonOutputSchema = {
     },
     interactiveElement: {
       type: "STRING",
-      description: "Self-contained HTML and JavaScript code (without markdown tags) for a simple interactive element that demonstrates the lesson's concept. It must be functional inside a div and should be styled with Tailwind CSS classes."
+      nullable: true,
+      description: "Optional. Self-contained HTML and JavaScript code (without markdown tags) for a simple interactive element that demonstrates the lesson's concept. It must be functional inside a div and should be styled with Tailwind CSS classes. If not applicable, return null."
     },
     infographicData: {
       type: "ARRAY",
@@ -58,7 +68,8 @@ const LessonOutputSchema = {
           }
         },
         required: ["title", "points"]
-      }
+      },
+      description: "An array of 3-5 slides for a presentation."
     },
     quiz: {
       type: "ARRAY",
@@ -73,7 +84,8 @@ const LessonOutputSchema = {
           correctAnswer: { type: "STRING", description: "The exact text of the correct answer." }
         },
         required: ["question", "options", "correctAnswer"]
-      }
+      },
+      description: "An array of 3 multiple-choice questions."
     }
   },
   required: ["explanation", "summary", "visualDiagram", "infographicData", "slides", "quiz"]
@@ -134,7 +146,7 @@ export const generateLessonContent = async (
   length: LessonLength = 'standard'
 ): Promise<LessonOutput> => {
   
-  const aiModel = getAIClient();
+  const { model } = getAIClient();
 
   const specificPersonalityInstruction = PERSONALITY_PROMPTS[teacher.personality] || PERSONALITY_PROMPTS[TeacherPersonality.Friendly];
 
@@ -157,7 +169,7 @@ ${lengthInstruction}
 Additional Instructions:
 - explanation: Must be beautifully formatted Markdown.
 - visualDiagram: Must be an attractive, colorful SVG code that correctly supports Arabic.
-- interactiveElement: Ensure this provides real educational value and is fun for the student. It should be self-contained HTML/JS using TailwindCSS classes.
+- interactiveElement: Ensure this provides real educational value and is fun for the student. It should be self-contained HTML/JS using TailwindCSS classes. If not applicable, return null.
 `;
 
   const prompt = `
@@ -172,39 +184,41 @@ Additional Instructions:
       parts: [{ text: systemInstruction }, { text: prompt }]
   }];
 
-  const result = await aiModel.generateContent({
-      contents: contents,
-      generationConfig: useSearch ? undefined : generationConfig, // Use JSON mode only when not searching
-      tools: tools
-  });
-  
-  const response = result.response;
-  const responseText = response.text();
-
-  if (!responseText) {
-    throw new Error("Failed to generate content. The model returned an empty response.");
-  }
-
   try {
+    const result = await model.generateContent({
+        contents: contents,
+        generationConfig: useSearch ? { responseMimeType: "application/json", responseSchema: LessonOutputSchema } : generationConfig, // Always use JSON mode
+        tools: tools,
+    });
+    
+    const response = result.response;
+    const responseText = response.text();
+
+    if (!responseText) {
+      throw new Error("Failed to generate content. The model returned an empty response.");
+    }
+
     const data = JSON.parse(responseText) as LessonOutput;
 
-    // Process grounding sources if they exist
     if (useSearch && response.candidates?.[0]?.groundingMetadata?.groundingAttributions) {
       const sources: GroundingSource[] = response.candidates[0].groundingMetadata.groundingAttributions
         .map((attr: any) => ({
-          uri: attr.sourceId.web.uri,
-          title: attr.sourceId.web.title
+          uri: attr.sourceId?.web?.uri,
+          title: attr.sourceId?.web?.title
         }))
-        .filter((s: GroundingSource) => s.uri && s.title);
+        .filter((s: any): s is GroundingSource => s.uri && s.title);
       
-      // Deduplicate sources
       data.groundingUrls = Array.from(new Map(sources.map(s => [s.uri, s])).values());
     }
 
     return data;
-  } catch (error) {
-    console.error("JSON Parse Error:", error, "Raw Text:", responseText);
-    throw new Error("An error occurred while processing the AI's response. The format was invalid.");
+  } catch (error: any) {
+    console.error("Gemini Generation Error:", error);
+    // Provide a more user-friendly error message
+    if (error.message.includes('API key not valid')) {
+        throw new Error("Invalid Gemini API Key. Please check your key in the settings and try again.");
+    }
+    throw new Error("An error occurred while generating the lesson. Please try again later.");
   }
 };
 
@@ -212,9 +226,8 @@ export const generateChatResponse = async (
   teacher: Teacher,
   lessonContext: string,
   history: ChatMessage[],
-  newMessage: string
 ): Promise<string> => {
-  const aiModel = getAIClient();
+  const { chatModel } = getAIClient();
   const specificPersonalityInstruction = PERSONALITY_PROMPTS[teacher.personality];
   const chatSpecificInstruction = CHAT_INSTRUCTIONS[teacher.personality] || "";
 
@@ -222,23 +235,32 @@ export const generateChatResponse = async (
 ${specificPersonalityInstruction}
 ${chatSpecificInstruction}
 You are chatting with a student about a lesson. The lesson context is: ${lessonContext.substring(0, 1000)}...
-Respond directly and conversationally in Arabic.`;
+Respond directly and conversationally in Arabic. Keep your answers concise unless asked for details.`;
 
-  const chatHistory: Part[] = history.slice(-10).map(msg => ({
-      text: msg.text,
-      role: msg.sender === 'user' ? 'user' : 'model'
+  const chatHistory: Content[] = history.map(msg => ({
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }]
   }));
 
-  const chat = aiModel.startChat({
-      history: [
-          { role: 'user', parts: [{ text: systemInstruction }] },
-          { role: 'model', parts: [{ text: "تمام، أنا مستعد للإجابة على أسئلة الطالب."}] }
-      ],
-      // The history from the current chat session is managed here,
-      // but `startChat` also accepts a `history` parameter for pre-loading.
-  });
 
-  const result = await chat.sendMessage(newMessage);
-  
-  return result.response.text() || "عذراً، لا أستطيع الرد الآن.";
+  try {
+    const chat = chatModel.startChat({
+        history: [
+            { role: 'user', parts: [{ text: systemInstruction }] },
+            { role: 'model', parts: [{ text: "تمام، أنا مستعد للإجابة على أسئلة الطالب."}] },
+            ...chatHistory.slice(0, -1) // Add all but the latest message to history
+        ],
+    });
+
+    const lastMessage = history[history.length - 1].text;
+    const result = await chat.sendMessage(lastMessage);
+    
+    return result.response.text() || "عذراً، لا أستطيع الرد الآن.";
+  } catch (error: any) {
+     console.error("Gemini Chat Error:", error);
+     if (error.message.includes('API key not valid')) {
+        return "مفتاح Gemini API غير صالح. يرجى التحقق من المفتاح والمحاولة مرة أخرى.";
+     }
+     return "عذراً، حدث خطأ أثناء محاولة الرد. يرجى المحاولة مرة أخرى.";
+  }
 };

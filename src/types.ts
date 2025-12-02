@@ -65,7 +65,7 @@ export interface LessonOutput {
   explanation: string;
   summary: string;
   visualDiagram: string;
-  interactiveElement?: string;
+  interactiveElement?: string | null;
   quiz: QuizQuestion[];
   slides: SlideContent[];
   infographicData: string[];

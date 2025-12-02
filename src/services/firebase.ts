@@ -1,21 +1,32 @@
-import { initializeApp } from "firebase/app";
+
+import { initializeApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, set, onValue, remove, update, get, child, Unsubscribe } from "firebase/database";
 import { UserProfile, Teacher, Lesson, School, CommunityPost, ScheduleItem } from "../types";
 
-// IMPORTANT: Replace this with your actual Firebase configuration
-// This configuration is intended for demonstration purposes only.
+// Firebase configuration is now loaded from environment variables
 const firebaseConfig = {
-    apiKey: "AIzaSyBjZhFt0AAxdTBmZrwr1Yk0tX4a4Ln81C0",
-    authDomain: "vcs-6d905.firebaseapp.com",
-    databaseURL: "https://vcs-6d905-default-rtdb.firebaseio.com",
-    projectId: "vcs-6d905",
-    storageBucket: "vcs-6d905.appspot.com",
-    messagingSenderId: "549325931380",
-    appId: "1:549325931380:web:ba969cbe0238012f41e221"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase
+let app: FirebaseApp;
+try {
+    app = initializeApp(firebaseConfig);
+} catch (error) {
+    console.error("Firebase initialization error:", error);
+    // You could show a UI message to the user here
+    alert("Could not connect to the database. Please check the configuration.");
+    throw error;
+}
+
 const db = getDatabase(app);
+
 
 // --- User Operations ---
 export const saveUserToDB = (user: UserProfile) => {
