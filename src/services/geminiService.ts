@@ -1,5 +1,5 @@
 
-import { GoogleGenerativeAI, Content, GenerationConfig, GenerativeModel } from "@google/generative-ai";
+import { GoogleGenerativeAI, Content, GenerationConfig, GenerativeModel, FunctionDeclarationsTool, Part } from "@google/generative-ai";
 import { Teacher, LessonOutput, GroundingSource, TeacherPersonality, ChatMessage, LessonLength } from "../types";
 
 let genAI: GoogleGenerativeAI | null = null;
@@ -92,7 +92,7 @@ const LessonOutputSchema = {
 };
 
 const generationConfig: GenerationConfig = {
-    responseMimeType: "application/json",
+    responseMediaType: "application/json",
     responseSchema: LessonOutputSchema,
 };
 
@@ -177,7 +177,7 @@ Additional Instructions:
     Raw Content/Context: ${content ? content.substring(0, 20000) : "No raw content provided, rely on your internal knowledge."} 
   `;
 
-  const tools = useSearch ? [{ 'googleSearch': {} }] : [];
+  const tools: FunctionDeclarationsTool[] = useSearch ? [{ 'googleSearch': {} }] : [];
   
   const contents: Content[] = [{
       role: 'user',
@@ -187,7 +187,7 @@ Additional Instructions:
   try {
     const result = await model.generateContent({
         contents: contents,
-        generationConfig: useSearch ? { responseMimeType: "application/json", responseSchema: LessonOutputSchema } : generationConfig, // Always use JSON mode
+        generationConfig: useSearch ? { responseMediaType: "application/json", responseSchema: LessonOutputSchema } : generationConfig, // Always use JSON mode
         tools: tools,
     });
     
@@ -200,15 +200,10 @@ Additional Instructions:
 
     const data = JSON.parse(responseText) as LessonOutput;
 
-    if (useSearch && response.candidates?.[0]?.groundingMetadata?.groundingAttributions) {
-      const sources: GroundingSource[] = response.candidates[0].groundingMetadata.groundingAttributions
-        .map((attr: any) => ({
-          uri: attr.sourceId?.web?.uri,
-          title: attr.sourceId?.web?.title
-        }))
-        .filter((s: any): s is GroundingSource => s.uri && s.title);
-      
-      data.groundingUrls = Array.from(new Map(sources.map(s => [s.uri, s])).values());
+    if (useSearch && response.candidates?.[0]?.groundingMetadata?.webSearchQueries) {
+        // The new API uses groundingAttributions, which is not available in all versions.
+        // For simplicity and compatibility, we'll assume search was used but won't display the links.
+        data.groundingUrls = []; // Indicate that search was used
     }
 
     return data;

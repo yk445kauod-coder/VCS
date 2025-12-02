@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { LessonOutput } from '../types';
 import DiagramRenderer from './DiagramRenderer';
@@ -55,7 +56,7 @@ const SmartBoard: React.FC<Props> = ({ output }) => {
                           <h3 className="font-bold text-slate-600 uppercase tracking-widest text-sm">Flow Diagram</h3>
                       </div>
                       <div className="flex-1 overflow-hidden min-h-[400px]">
-                        <DiagramRenderer content={output.visualDiagram} />
+                        <DiagramRenderer content={output.visualDiagram || ''} />
                       </div>
                   </div>
               </div>

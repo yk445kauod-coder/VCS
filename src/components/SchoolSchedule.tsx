@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Teacher, ScheduleItem, UserRole } from '../types';
 import { subscribeToSchedule, saveScheduleItemToDB, deleteScheduleItemFromDB } from '../services/firebase';

@@ -181,7 +181,10 @@ const App: React.FC = () => {
         
         <div className="p-6 border-t border-slate-100 space-y-2">
             <button 
-               onClick={() => setApiKey(null)}
+               onClick={() => {
+                 localStorage.removeItem('gemini_api_key');
+                 setApiKey(null);
+               }}
                className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 text-sm font-bold w-full p-2"
              >
                  <Key size={16} /> تغيير مفتاح API

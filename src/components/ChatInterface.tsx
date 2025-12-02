@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Teacher, ChatMessage } from '../types';
 import { generateChatResponse } from '../services/geminiService';
@@ -26,12 +27,12 @@ const ChatInterface: React.FC<Props> = ({ teacher, lessonContext }) => {
   const handleSend = async () => {
     if (!inputText.trim() || !teacher) return;
     const userMsg: ChatMessage = { id: Date.now().toString(), sender: 'user', text: inputText, timestamp: Date.now() };
-    setMessages(prev => [...prev, userMsg]);
+    const allMessages = [...messages, userMsg];
+    setMessages(allMessages);
     setInputText('');
     setIsLoading(true);
     try {
-      const allMessages = [...messages, userMsg];
-      const responseText = await generateChatResponse(teacher, lessonContext, allMessages, inputText);
+      const responseText = await generateChatResponse(teacher, lessonContext, allMessages);
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), sender: 'ai', text: responseText, timestamp: Date.now() }]);
     } catch (error) {
       console.error("Chat API error:", error);

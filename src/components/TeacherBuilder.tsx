@@ -1,17 +1,18 @@
+
 import React, { useState } from 'react';
 import { Teacher, TeacherPersonality } from '../types';
 import { AVATAR_PRESETS, PERSONALITY_DEFAULTS } from '../constants';
 import { Save, User, BookOpen, Trash2, AlertCircle, Sparkles, X } from 'lucide-react';
 
 interface Props {
-  onSave: (teacher: Teacher) => void;
+  onSave: (teacher: Omit<Teacher, 'ownerId' | 'schoolId'>) => void;
   onCancel: () => void;
-  existingTeacher?: Teacher;
+  existingTeacher?: Teacher | null; // Allow null for creation
   onDelete?: (id: string) => void;
 }
 
 const TeacherBuilder: React.FC<Props> = ({ onSave, onCancel, existingTeacher, onDelete }) => {
-  const isNewTeacher = !existingTeacher || !existingTeacher.name; // A more reliable check for new teacher
+  const isNewTeacher = !existingTeacher?.id;
   const [name, setName] = useState(existingTeacher?.name || '');
   const [subject, setSubject] = useState(existingTeacher?.subject || '');
   const [personality, setPersonality] = useState<TeacherPersonality>(existingTeacher?.personality || TeacherPersonality.Friendly);
@@ -21,7 +22,6 @@ const TeacherBuilder: React.FC<Props> = ({ onSave, onCancel, existingTeacher, on
 
   const handlePersonalityChange = (newPersonality: TeacherPersonality) => {
     setPersonality(newPersonality);
-    // Only auto-suggest an avatar for new teachers
     if (isNewTeacher) {
         const suggestion = PERSONALITY_DEFAULTS[newPersonality];
         if (suggestion) {
@@ -44,19 +44,17 @@ const TeacherBuilder: React.FC<Props> = ({ onSave, onCancel, existingTeacher, on
     }
     setError(null);
     onSave({
-      // Use existing ID or generate a new one
       id: existingTeacher?.id || Date.now().toString(),
-      // ownerId and schoolId will be set in the parent component
       name,
       subject,
       personality,
       avatarColor,
-      avatarIcon
-    } as Teacher);
+      avatarIcon,
+    });
   };
 
   const handleDelete = () => {
-    if (existingTeacher && onDelete && confirm(`Are you sure you want to delete the teacher "${existingTeacher.name}"? This cannot be undone.`)) {
+    if (existingTeacher?.id && onDelete && confirm(`Are you sure you want to delete the teacher "${existingTeacher.name}"? This cannot be undone.`)) {
         onDelete(existingTeacher.id);
     }
   };
