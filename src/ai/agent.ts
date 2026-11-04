@@ -167,17 +167,64 @@ export class DutyAgent {
     const openOrder = await this.openOrderFor(tenant.id, customer.id, conversation.id);
     const lastOrder = openOrder ?? (await this.deps.orders.lastForCustomer(tenant.id, customer.id));
 
-    const turn = this.deps.provider
-      ? await this.runLlmTurn({ tenant, customer, conversation, input, history, products, knowledge, intent, openOrder, lastOrder })
-      : await this.runLocalTurn({ tenant, customer, conversation, input, history, products, knowledge, intent, openOrder, lastOrder });
+    const ctx: TurnContext = { tenant, customer, conversation, input, history, products, knowledge, intent, openOrder, lastOrder };
+    const turn = await this.runTurn(ctx);
 
     await this.persistTurn(tenant, customer, conversation, turn, intent);
     return turn;
   }
 
+  /**
+   * Runs the LLM path, and falls back to the deterministic brain if the provider
+   * fails.
+   *
+   * An LLM outage must not stop the shop from selling. Rate limits, quota
+   * exhaustion and provider 5xxs are all routine, and the previous behaviour was
+   * to let the exception propagate: the customer's message got no reply at all
+   * and the webhook returned a 5xx. Order capture, pricing and escalation are all
+   * deterministic, so the fallback still takes the order and answers.
+   *
+   * Partial LLM work is preserved. If the model created an order and then a later
+   * step failed, the fallback runs with that order already in context — otherwise
+   * it would see no open order and create a second one for the same request.
+   */
+  private async runTurn(ctx: TurnContext): Promise<AgentTurn> {
+    if (!this.deps.provider) return this.runLocalTurn(ctx);
+
+    let partial: AgentTurn | undefined;
+    try {
+      return await this.runLlmTurn(ctx, (snapshot) => {
+        partial = snapshot;
+      });
+    } catch (error) {
+      log.warn('LLM turn failed, falling back to the deterministic brain', {
+        tenantId: ctx.tenant.id,
+        conversationId: ctx.conversation.id,
+        error: String(error),
+      });
+
+      // Re-read any draft the partial turn created, so the fallback adds to it
+      // rather than opening a duplicate.
+      let openOrder = ctx.openOrder;
+      if (partial?.orderIds.length) {
+        const latest = await this.openOrderFor(ctx.tenant.id, ctx.customer.id, ctx.conversation.id);
+        if (latest) openOrder = latest;
+      }
+
+      const local = await this.runLocalTurn({ ...ctx, openOrder });
+      return {
+        ...local,
+        // Keep whatever the model already did; the local turn re-derives its own.
+        actions: [...(partial?.actions ?? []), ...local.actions],
+        orderIds: [...new Set([...(partial?.orderIds ?? []), ...local.orderIds])],
+        escalated: local.escalated || (partial?.escalated ?? false),
+      };
+    }
+  }
+
   // ---------------------------------------------------------------- LLM path
 
-  private async runLlmTurn(ctx: TurnContext): Promise<AgentTurn> {
+  private async runLlmTurn(ctx: TurnContext, onProgress?: (snapshot: AgentTurn) => void): Promise<AgentTurn> {
     const { tenant, customer, conversation, input, history, products, knowledge, intent, openOrder } = ctx;
     const actions: AgentAction[] = [];
     const orderIds: string[] = [];
@@ -234,6 +281,18 @@ export class DutyAgent {
         if (outcome.upsell) upsell = outcome.upsell;
         if (outcome.confidence) confidence = outcome.confidence;
       }
+      onProgress?.({
+        conversationId: conversation.id,
+        customerId: customer.id,
+        reply: finalText,
+        actions,
+        intent: intent.intent,
+        sentiment: intent.sentiment,
+        confidence,
+        escalated,
+        orderIds,
+        upsell,
+      });
       if (!finalText && completion.text.trim()) finalText = completion.text.trim();
     }
 

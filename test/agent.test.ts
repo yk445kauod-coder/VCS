@@ -198,3 +198,131 @@ test('malformed WhatsApp payloads do not throw', () => {
   assert.deepEqual(parseWhatsAppWebhook({}), []);
   assert.deepEqual(parseWhatsAppWebhook({ entry: [{}] }), []);
 });
+
+// Regression: the LLM path used to let provider errors propagate. A 429 from a
+// rate limit or a 503 from an overloaded model became a failed webhook and a
+// customer message with no reply at all — an LLM outage stopped the shop selling.
+// Order capture, pricing and escalation are deterministic, so the turn must
+// degrade to the local brain instead of failing.
+test('a failing LLM provider degrades to the deterministic brain instead of failing the request', async () => {
+  const store = new MemoryStore();
+  await store.init();
+  const catalog = new CatalogService(store, 'USD');
+  const orders = new OrderService(store, catalog, 'USD');
+  const upsell = new UpsellEngine(catalog);
+  const ingestion = new IngestionService({ store, embedder: hashEmbedder, provider: null, config: loadConfig({}) });
+
+  const tenant: Tenant = {
+    id: 't1',
+    name: 'Atlas Coffee',
+    about: 'Specialty coffee roaster.',
+    tone: 'warm',
+    currency: 'USD',
+    locale: 'en',
+    settings: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  await store.tenants.put(tenant);
+  await catalog.create({ tenantId: 't1', name: 'Ethiopia Yirgacheffe 250g', price: 1800 });
+  await ingestion.ingestText({ tenantId: 't1', title: 'Shipping', content: 'Delivery takes 3-5 days.' });
+
+  let attempts = 0;
+  const alwaysFails = {
+    name: 'failing-provider',
+    async complete() {
+      attempts += 1;
+      throw new Error('429 Too Many Requests: quota exceeded');
+    },
+    async embed() {
+      return [];
+    },
+  };
+
+  const agent = new DutyAgent({
+    store,
+    catalog,
+    orders,
+    upsell,
+    provider: alwaysFails as never,
+    embedder: hashEmbedder,
+    config: loadConfig({}),
+  });
+
+  const turn = await agent.handleInbound(inbound('I want to order two bags of Ethiopian beans'));
+
+  assert.ok(attempts > 0, 'the provider should have been called');
+  assert.ok(turn.reply.length > 0, 'a failing provider must still produce a reply for the customer');
+  assert.equal(turn.orderIds.length, 1, 'the deterministic brain must still capture the order');
+  const order = await orders.get('t1', turn.orderIds[0]!);
+  assert.ok(order, 'the captured order must be readable');
+  assert.equal(order!.lines.length, 1);
+});
+
+test('a provider that fails mid-turn does not create a duplicate order', async () => {
+  const store = new MemoryStore();
+  await store.init();
+  const catalog = new CatalogService(store, 'USD');
+  const orders = new OrderService(store, catalog, 'USD');
+  const upsell = new UpsellEngine(catalog);
+  const ingestion = new IngestionService({ store, embedder: hashEmbedder, provider: null, config: loadConfig({}) });
+
+  const tenant: Tenant = {
+    id: 't1',
+    name: 'Atlas Coffee',
+    about: 'Specialty coffee roaster.',
+    tone: 'warm',
+    currency: 'USD',
+    locale: 'en',
+    settings: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  await store.tenants.put(tenant);
+  await catalog.create({ tenantId: 't1', name: 'Ethiopia Yirgacheffe 250g', price: 1800 });
+  await ingestion.ingestText({ tenantId: 't1', title: 'Shipping', content: 'Delivery takes 3-5 days.' });
+
+  // First call creates an order through a tool, second call blows up. The fallback
+  // must add to that order rather than open a second one for the same request.
+  let call = 0;
+  const failsAfterTool = {
+    name: 'fails-after-tool',
+    async complete() {
+      call += 1;
+      if (call === 1) {
+        return {
+          text: '',
+          toolCalls: [
+            {
+              id: 'call_1',
+              name: 'create_order',
+              arguments: { sku: 'ETH-YIR-250' },
+            },
+          ],
+        };
+      }
+      throw new Error('503 Service Unavailable: model overloaded');
+    },
+    async embed() {
+      return [];
+    },
+  };
+
+  const agent = new DutyAgent({
+    store,
+    catalog,
+    orders,
+    upsell,
+    provider: failsAfterTool as never,
+    embedder: hashEmbedder,
+    config: loadConfig({}),
+  });
+
+  const turn = await agent.handleInbound(inbound('I want to order two bags of Ethiopian beans'));
+
+  assert.ok(turn.reply.length > 0, 'the customer must still get a reply');
+  assert.equal(turn.orderIds.length, 1, 'exactly one order id must be reported');
+
+  const drafts = await store.orders.list({ where: { tenantId: 't1', customerId: turn.customerId } });
+  assert.equal(drafts.length, 1, `expected 1 order, found ${drafts.length} — the fallback duplicated it`);
+});
