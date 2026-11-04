@@ -40,6 +40,93 @@ WantedBy=multi-user.target
 Put Nginx or Caddy in front for TLS. Set `PUBLIC_URL` to the public origin — Duty
 uses it for the WhatsApp webhook URL, the widget snippet and absolute links.
 
+## Cloudflare + Neon (managed, production)
+
+This is the fully-managed path: Neon for Postgres, Cloudflare for the edge and
+TLS. No server to patch, and the free tiers are enough to run a real shop.
+
+**What runs where**
+
+| Piece | Where | Why |
+| --- | --- | --- |
+| Duty app (API, agent, channels) | Any container host — Fly, Render, Railway, a VPS, Docker | It is a long-lived Node server: it opens a Postgres pool, keeps an event stream, and receives webhooks |
+| Dashboard + public catalogue | Same process, or Cloudflare cache | The edge caches the catalogue and widget |
+| Database | Neon Postgres | Serverless, branches, point-in-time restore |
+| TLS, hostname, rate limiting, security headers | Cloudflare Worker | Cheap, global, no origin exposed |
+
+**Cloudflare Workers cannot host the app itself.** A Worker is V8 isolates, not
+Node: no `node:sqlite`, no long-lived TCP to Postgres, 128 MB memory and a CPU
+limit per request. Duty is a server, so it runs on a host and Cloudflare fronts
+it. (Workers *can* reach Neon through `@neondatabase/serverless` over HTTP, which
+is the right move if you later want the public catalogue served entirely at the
+edge — but the agent, channels and webhooks still need the server.)
+
+### 1. Provision Neon
+
+```bash
+NEON_API_KEY=napi_xxx NEON_PROJECT_ID=your-project \
+  npx tsx scripts/provision-neon.mjs
+```
+
+Idempotent: creates the database if missing, applies the schema through the real
+`PostgresStore`, prints row counts, and reports the `DATABASE_URL` to set. Add
+`NEON_SEED=1` to seed the demo tenant. It needs `tsx` because it imports the
+TypeScript adapter directly.
+
+Then set on your app host:
+
+```bash
+DUTY_DB=postgres
+DATABASE_URL=postgresql://…@ep-….neon.tech/duty?sslmode=require
+ADMIN_TOKEN=<a long random string>
+SESSION_SECRET=<another long random string>
+PUBLIC_URL=https://duty.yourdomain.com
+```
+
+The adapter enables TLS automatically for `neon.tech` and `supabase.co` hosts.
+Use the **pooled** connection string (the `-pooler` host) on serverless hosts so
+short-lived instances do not exhaust Neon's connection limit.
+
+### 2. Deploy the edge
+
+```bash
+cd deploy/cloudflare
+# set ORIGIN in wrangler.toml to your app host
+npx wrangler deploy
+```
+
+That publishes `https://<worker>.<subdomain>.workers.dev`. Point a custom domain
+at it under Workers → your worker → Settings → Domains & Routes.
+
+The worker adds security headers, caches `/api/public/*` and the widget at the
+edge, rate-limits the unauthenticated `POST` endpoints (`/webhooks/*`,
+`/api/public/chat`) at 60 requests/minute per IP per colo, and serves an
+explanatory status page if the origin is down instead of a bare 502.
+
+### 3. Verify
+
+```bash
+curl https://duty.yourdomain.com/api/health          # {"status":"ok","store":{"kind":"postgres"}}
+curl -X POST https://duty.yourdomain.com/webhooks/inbound \
+  -H 'content-type: application/json' \
+  -d '{"channel":"whatsapp","externalId":"+1555…","text":"How much is the grinder?"}'
+```
+
+A correct reply means the whole path works: edge → app → Neon → agent → back.
+
+### Notes and limits
+
+- **Edge rate limiting is per-colo and in-memory.** The counter lives in the
+  Cache API, so the real limit is 60 × number-of-colos and it resets on eviction.
+  Fine for abuse control; move it to a Durable Object or KV if you need a global
+  limit.
+- **The worker fails open.** If the counter errors, requests pass through rather
+  than 5xx — a broken limiter must not take down the shop.
+- **R2 is not required.** It is off on this account; Duty stores documents in the
+  database and needs no object storage. Turn R2 on later if you want to keep
+  large ingested files (PDFs, product images) out of Postgres.
+- **Back up Neon** with its point-in-time restore, or `pg_dump` on a schedule.
+
 ## Docker
 
 ```bash

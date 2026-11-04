@@ -1,0 +1,18 @@
+# Duty — Cloudflare edge.
+#
+#   cd deploy/cloudflare && npx wrangler deploy
+#
+# ORIGIN is the host running the Duty server. Point it at a permanent host for
+# production (see docs/DEPLOYMENT.md → Cloudflare). Until then the worker still
+# deploys and serves a status page explaining that the origin is unreachable.
+name = "duty"
+main = "worker.js"
+compatibility_date = "2026-08-19"
+
+[vars]
+ORIGIN = "https://work-1-lhlqtwsunnoxqxuw.prod-runtime.all-hands.dev"
+
+# The app owns CORS; the edge must not add a second policy.
+[observability]
+enabled = true
+head_sampling_rate = 1.0
