@@ -1,3 +1,4 @@
+import { assertPublicHttpUrl } from '../core/net.js';
 import { createLogger } from '../core/logger.js';
 import { newId, nowIso } from '../core/ids.js';
 import { bus } from '../core/events.js';
@@ -83,6 +84,9 @@ export class IngestionService {
     url: string,
     options: WebsiteIngestOptions = {},
   ): Promise<{ documents: KnowledgeDocument[]; profileApplied: boolean; pages: number }> {
+    // Validate up front: a blocked target should explain itself, not look like
+    // an empty site. `crawlWebsite` re-checks every redirect hop as well.
+    await assertPublicHttpUrl(url);
     const pages = await crawlWebsite(url, { maxPages: options.maxPages ?? 8 });
     const documents: KnowledgeDocument[] = [];
     for (const page of pages) {

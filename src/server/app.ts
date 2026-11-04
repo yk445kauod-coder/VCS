@@ -26,6 +26,14 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
+/**
+ * Paths where a query-string token is unavoidable: `EventSource` cannot set
+ * request headers, so the dashboard's live feed has to carry the credential in
+ * the URL. Everywhere else the token must arrive in a header, because a token
+ * in a URL leaks into access logs, proxy logs, and browser history.
+ */
+const QUERY_TOKEN_PATHS = ['/api/events'];
+
 export function extractAdminToken(request: FastifyRequest): string | null {
   const header = request.headers['x-admin-token'];
   if (typeof header === 'string' && header) return header;
@@ -33,8 +41,11 @@ export function extractAdminToken(request: FastifyRequest): string | null {
   if (typeof authorization === 'string' && authorization.toLowerCase().startsWith('bearer ')) {
     return authorization.slice(7).trim();
   }
-  const query = request.query as Record<string, unknown> | undefined;
-  if (query && typeof query.token === 'string') return query.token;
+  const pathname = request.url.split('?')[0];
+  if (QUERY_TOKEN_PATHS.includes(pathname)) {
+    const query = request.query as Record<string, unknown> | undefined;
+    if (query && typeof query.token === 'string') return query.token;
+  }
   return null;
 }
 

@@ -1,3 +1,4 @@
+import { fetchPublicHttp } from '../core/net.js';
 import { createLogger } from '../core/logger.js';
 import type { Channel, OutboundMessage, SendResult } from './types.js';
 
@@ -22,7 +23,7 @@ export class WebhookChannel implements Channel {
       return { ok: false, detail: 'no outboundWebhookUrl configured for this tenant' };
     }
     try {
-      const response = await fetch(url, {
+      const response = await fetchPublicHttp(url, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',

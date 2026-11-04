@@ -1,3 +1,4 @@
+import { RateLimiter, rateLimitHook } from '../../core/rate-limit.js';
 import type { FastifyInstance } from 'fastify';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
@@ -47,6 +48,14 @@ function verifyHmac(secret: string, raw: string, signature: string | undefined):
 
 export function registerPublicRoutes(app: FastifyInstance, runtime: Runtime): void {
   const { store, agent, analytics, catalog, ingestion, config } = runtime;
+
+  // Unauthenticated endpoints that run the agent or write rows. Without a cap,
+  // a single client can drive unbounded inference cost and database growth.
+  const limiter = new RateLimiter();
+  const webchatLimit = { windowMs: 60_000, max: 30 };
+  const webhookLimit = { windowMs: 60_000, max: 120 };
+  const interval = setInterval(() => limiter.sweep(), 60_000);
+  interval.unref?.();
 
   const resolveTenant = async (tenantId?: string): Promise<string> => {
     if (tenantId) {
@@ -102,7 +111,7 @@ export function registerPublicRoutes(app: FastifyInstance, runtime: Runtime): vo
   });
 
   // ---------------------------------------------------------------- web chat
-  app.post('/api/webchat/session', async (request) => {
+  app.post('/api/webchat/session', { onRequest: rateLimitHook(limiter, webchatLimit) }, async (request) => {
     const body = webchatStartSchema.parse(request.body ?? {});
     const tenantId = await resolveTenant(body.tenantId);
     const sessionId = body.sessionId || newId('wcs');
@@ -122,7 +131,7 @@ export function registerPublicRoutes(app: FastifyInstance, runtime: Runtime): vo
     return { sessionId, customerId: customer.id, tenantId };
   });
 
-  app.post('/api/webchat/message', async (request) => {
+  app.post('/api/webchat/message', { onRequest: rateLimitHook(limiter, webchatLimit) }, async (request) => {
     const body = webchatMessageSchema.parse(request.body ?? {});
     const tenantId = await resolveTenant();
     const turn = await agent.handleInbound({
@@ -143,10 +152,13 @@ export function registerPublicRoutes(app: FastifyInstance, runtime: Runtime): vo
   });
 
   app.get('/api/webchat/history', async (request) => {
-    const query = request.query as { sessionId?: string };
+    const query = request.query as { sessionId?: string; tenantId?: string };
     if (!query.sessionId) throw badRequest('sessionId is required');
+    // Session ids are generated per tenant, but scoping the lookup keeps one
+    // tenant from reading another's transcript if a session id ever collides.
+    const tenantId = await resolveTenant(query.tenantId);
     const customers = await store.customers.list({
-      where: { channel: 'webchat', externalId: query.sessionId },
+      where: { tenantId, channel: 'webchat', externalId: query.sessionId },
       limit: 1,
     });
     const customer = customers[0];
@@ -187,7 +199,7 @@ export function registerPublicRoutes(app: FastifyInstance, runtime: Runtime): vo
     return reply.code(403).send('verification failed');
   });
 
-  app.post('/webhooks/whatsapp', async (request, reply) => {
+  app.post('/webhooks/whatsapp', { onRequest: rateLimitHook(limiter, webhookLimit) }, async (request, reply) => {
     const raw = JSON.stringify(request.body ?? {});
     const signature = request.headers['x-hub-signature-256'] as string | undefined;
     if (config.whatsapp.webhookSecret && !verifyHmac(config.whatsapp.webhookSecret, raw, signature)) {
@@ -205,7 +217,7 @@ export function registerPublicRoutes(app: FastifyInstance, runtime: Runtime): vo
   });
 
   // ------------------------------------------------------- generic inbound
-  app.post('/webhooks/inbound', async (request, reply) => {
+  app.post('/webhooks/inbound', { onRequest: rateLimitHook(limiter, webhookLimit) }, async (request, reply) => {
     const raw = JSON.stringify(request.body ?? {});
     const signature = request.headers['x-duty-signature'] as string | undefined;
     const secret = process.env.INBOUND_WEBHOOK_SECRET ?? '';

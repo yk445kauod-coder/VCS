@@ -1,3 +1,4 @@
+import { fetchPublicHttp } from '../core/net.js';
 import { newId } from '../core/ids.js';
 import { createLogger } from '../core/logger.js';
 import { makeDocument, buildChunks } from './knowledge.js';
@@ -111,7 +112,9 @@ export async function crawlWebsite(
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const response = await fetch(url, {
+      // A tenant supplies this URL, and Duty runs inside the operator's own
+      // network, so the target must be proven public before it is fetched.
+      const response = await fetchPublicHttp(url, {
         signal: controller.signal,
         headers: { 'user-agent': 'DutyBot/1.0 (+https://duty.local)' },
       });
