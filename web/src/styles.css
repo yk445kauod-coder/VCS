@@ -30,9 +30,12 @@
   --violet: #a98cff;
 
   /* Type */
-  --display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
-  --sans: 'Instrument Sans', 'Helvetica Neue', Arial, sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Noto Sans Arabic sits behind each Latin face: the Latin families have no
+     Arabic glyphs, so customer messages in Arabic resolve to a designed font
+     instead of an arbitrary system fallback. */
+  --display: 'Fraunces', 'Noto Sans Arabic', 'Iowan Old Style', Georgia, serif;
+  --sans: 'Instrument Sans', 'Noto Sans Arabic', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', 'Noto Sans Arabic', ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* Rhythm */
   --radius: 3px;
@@ -72,6 +75,18 @@ body {
 ::selection {
   background: var(--ember);
   color: #14100d;
+}
+
+/* One visible focus ring for every interactive element. */
+:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Pointer users never see the ring; keyboard users always do. */
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* ---------------------------------------------------------------- typography */

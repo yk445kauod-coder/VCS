@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { classify, pickProduct, draft } from '../src/ai/local-brain.js';
+import { detectLocale } from '../src/ai/locale.js';
 import type { Product, Tenant } from '../src/core/types.js';
 
-const tenant: Tenant = {
+const baseTenant: Tenant = {
   id: 't1',
   name: 'Atlas Coffee',
   tone: 'warm',
@@ -88,7 +89,7 @@ test('pickProduct matches a product through a non-English alias', () => {
 
 test('draft always returns an actionable reply', () => {
   const result = draft({
-    tenant,
+    tenant: baseTenant,
     intent: classify('I want to buy the beans'),
     text: 'I want to buy the beans',
     products,
@@ -103,7 +104,7 @@ test('draft always returns an actionable reply', () => {
 
 test('draft escalates refunds to a human', () => {
   const result = draft({
-    tenant,
+    tenant: baseTenant,
     intent: classify('I want a refund'),
     text: 'I want a refund',
     products,
@@ -113,4 +114,72 @@ test('draft escalates refunds to a human', () => {
     currency: 'USD',
   });
   assert.equal(result.needsHuman, true);
+});
+
+test('detectLocale picks the script the customer actually wrote in', () => {
+  assert.equal(detectLocale('hello there'), 'en');
+  assert.equal(detectLocale('مرحبا'), 'ar');
+  assert.equal(detectLocale('I want the طاحونة please'), 'ar');
+});
+
+test('draft replies in Arabic when the customer writes Arabic', () => {
+  const tenant = { ...baseTenant, name: 'محمصة أطلس' };
+  const reply = draft({
+    tenant: baseTenant,
+    intent: classify('أريد أن أشتري Ethiopia Yirgacheffe 250g'),
+    text: 'أريد أن أشتري Ethiopia Yirgacheffe 250g',
+    products,
+    openOrder: null,
+    lastOrder: null,
+    knowledge: [],
+    currency: 'USD',
+  }).reply;
+  assert.match(reply, /[\u0600-\u06FF]/, 'Arabic reply must contain Arabic script');
+  assert.doesNotMatch(reply, /Great choice/, 'must not fall back to the English template');
+});
+
+test('draft still replies in English for English customers', () => {
+  const reply = draft({
+    tenant: baseTenant,
+    intent: classify('I want to buy the Ethiopia Yirgacheffe 250g'),
+    text: 'I want to buy the Ethiopia Yirgacheffe 250g',
+    products,
+    openOrder: null,
+    lastOrder: null,
+    knowledge: [],
+    currency: 'USD',
+  }).reply;
+  assert.match(reply, /Great choice/);
+});
+
+test('every intent has an Arabic reply', () => {
+  const intents: Array<[string, string]> = [
+    ['greeting', 'مرحبا'],
+    ['price_inquiry', 'كم السعر'],
+    ['order_intent', 'أريد أن أشتري الطاحونة'],
+    ['confirm_order', 'تأكيد'],
+    ['upsell_accept', 'نعم'],
+    ['upsell_decline', 'لا شكرا'],
+    ['order_status', 'وين طلبي'],
+    ['refund', 'أريد استرجاع'],
+    ['complaint', 'الخدمة سيئة'],
+    ['human_request', 'أريد موظف'],
+    ['logistics', 'متى التوصيل'],
+    ['support', 'لا يعمل'],
+    ['goodbye', 'شكرا'],
+    ['other', 'شيء ما'],
+  ];
+  for (const [, text] of intents) {
+    const reply = draft({
+      tenant: { ...baseTenant, name: 'متجر' },
+      intent: classify(text),
+      text,
+      products,
+      openOrder: null,
+      lastOrder: null,
+      knowledge: [],
+      currency: 'USD',
+    }).reply;
+    assert.match(reply, /[\u0600-\u06FF]/, `"${text}" produced a non-Arabic reply: ${reply}`);
+  }
 });

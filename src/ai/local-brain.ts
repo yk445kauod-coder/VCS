@@ -1,6 +1,7 @@
 import type { Order, Product, Tenant } from '../core/types.js';
 import { formatMoney } from '../core/money.js';
 import { clamp01 } from '../core/money.js';
+import { detectLocale, strings } from './locale.js';
 
 export type Intent =
   | 'greeting'
@@ -175,8 +176,12 @@ const priceList = (products: Product[], currency: string): string =>
 /** Deterministic reply generator. No network, no key, always produces something useful. */
 export function draft(input: DraftInput): Draft {
   const { tenant, intent, products, knowledge, currency } = input;
-  const businessName = tenant.name || 'us';
-  const greeting = input.text.trim().length < 3 ? '' : '';
+  // Reply in the language the customer actually wrote in. The tenant locale is
+  // only a fallback, because a shop can be messaged by a customer who does not
+  // share the shop's language.
+  const locale = detectLocale(input.text);
+  const t = strings(locale);
+  const businessName = tenant.name || t.ourBusiness;
   const tone = tenant.tone || 'friendly and concise';
 
   const fromKnowledge = knowledge.length
@@ -190,11 +195,9 @@ export function draft(input: DraftInput): Draft {
   switch (intent.intent) {
     case 'greeting':
       return {
-        reply:
-          `Hi! 👋 Thanks for reaching out to ${businessName}. ` +
-          (products.length
-            ? `I can help you order, check prices, or track something. Popular right now:\n${priceList(products, currency)}`
-            : 'How can I help you today?'),
+        reply: products.length
+          ? t.greeting(businessName, priceList(products, currency))
+          : t.greetingNoProducts(businessName),
         confidence: 0.7,
         needsHuman: false,
       };
@@ -206,7 +209,7 @@ export function draft(input: DraftInput): Draft {
         // The price is the answer; a retrieved policy only adds noise unless the
         // customer also asked something else (handled by other intents).
         return {
-          reply: `${matched.name} is ${formatMoney(matched.price, matched.currency || currency)}.`,
+          reply: t.price(matched.name, formatMoney(matched.price, matched.currency || currency)),
           confidence: 0.78,
           needsHuman: false,
         };
@@ -216,13 +219,13 @@ export function draft(input: DraftInput): Draft {
       }
       if (products.length) {
         return {
-          reply: `Here's what we currently offer:\n${priceList(products, currency)}\n\nTell me which one you're interested in and I'll set it up.`,
+          reply: t.catalogueIntro(priceList(products, currency)),
           confidence: 0.62,
           needsHuman: false,
         };
       }
       return {
-        reply: `I don't have the full catalogue loaded yet. Let me get a teammate to help you with that right away.`,
+        reply: t.catalogueUnavailable(),
         confidence: 0.3,
         needsHuman: true,
       };
@@ -232,22 +235,20 @@ export function draft(input: DraftInput): Draft {
       const product = pickProduct(input.text, products);
       if (product) {
         return {
-          reply:
-            `Great choice — ${product.name} is ${formatMoney(product.price, product.currency || currency)}. ` +
-            `I've started an order for you. Reply *confirm* and I'll finalise it, or tell me the quantity you need.`,
+          reply: t.orderStarted(product.name, formatMoney(product.price, product.currency || currency)),
           confidence: 0.75,
           needsHuman: false,
         };
       }
       if (products.length) {
         return {
-          reply: `Happy to help you order. Which of these would you like?\n${priceList(products, currency)}`,
+          reply: t.orderWhich(priceList(products, currency)),
           confidence: 0.55,
           needsHuman: false,
         };
       }
       return {
-        reply: `I'd love to get that ordered for you. A teammate will confirm the details shortly.`,
+        reply: t.orderEscalate(),
         confidence: 0.35,
         needsHuman: true,
       };
@@ -257,15 +258,17 @@ export function draft(input: DraftInput): Draft {
       const order = input.openOrder ?? input.lastOrder;
       if (order) {
         return {
-          reply:
-            `Confirmed ✅ Order *${order.number}* — ${order.lines.map((line) => `${line.quantity}x ${line.name}`).join(', ')} ` +
-            `totalling ${formatMoney(order.total, order.currency)}. I'll let you know the moment it ships.`,
+          reply: t.confirmed(
+            order.number,
+            order.lines.map((line) => `${line.quantity}x ${line.name}`).join(', '),
+            formatMoney(order.total, order.currency),
+          ),
           confidence: 0.9,
           needsHuman: false,
         };
       }
       return {
-        reply: `I don't have an open order for you yet — tell me what you'd like and I'll start one right away.`,
+        reply: t.noOpenOrder(),
         confidence: 0.45,
         needsHuman: false,
       };
@@ -274,92 +277,62 @@ export function draft(input: DraftInput): Draft {
     case 'upsell_accept': {
       if (input.upsell?.product) {
         return {
-          reply: `Added ${input.upsell.product.name} to your order — you're all set. Anything else?`,
+          reply: t.upsellAdded(input.upsell.product.name),
           confidence: 0.85,
           needsHuman: false,
         };
       }
       return {
-        reply: `Great — anything else you'd like me to add?`,
+        reply: t.upsellAnythingElse(),
         confidence: 0.5,
         needsHuman: false,
       };
     }
 
     case 'upsell_decline':
-      return {
-        reply: `No problem at all — I'll leave it as is. Anything else I can help with?`,
-        confidence: 0.8,
-        needsHuman: false,
-      };
+      return { reply: t.upsellDeclined(), confidence: 0.8, needsHuman: false };
 
     case 'order_status': {
       const order = input.lastOrder;
       if (order) {
         return {
-          reply: `Your order ${order.number} is currently *${order.status}* — total ${formatMoney(order.total, order.currency)}. Want me to notify you the moment it changes?`,
+          reply: t.status(order.number, order.status, formatMoney(order.total, order.currency)),
           confidence: 0.8,
           needsHuman: false,
         };
       }
-      return {
-        reply: `I couldn't find an order under that reference. Could you share the order number (it looks like DTY-…) or the phone number you used?`,
-        confidence: 0.4,
-        needsHuman: true,
-      };
+      return { reply: t.statusNotFound(), confidence: 0.4, needsHuman: true };
     }
 
     case 'refund':
-      return {
-        reply: `I'm sorry about that. I've flagged this for a refund review and a teammate will confirm the next step with you today.`,
-        confidence: 0.6,
-        needsHuman: true,
-      };
+      return { reply: t.refund(), confidence: 0.6, needsHuman: true };
 
     case 'complaint':
-      return {
-        reply: `I'm really sorry for the trouble. I've escalated this to a human teammate who can fix it — they'll reply here shortly.`,
-        confidence: 0.55,
-        needsHuman: true,
-      };
+      return { reply: t.complaint(), confidence: 0.55, needsHuman: true };
 
     case 'human_request':
-      return {
-        reply: `Of course — connecting you to a human teammate now. 🙋`,
-        confidence: 0.9,
-        needsHuman: true,
-      };
+      return { reply: t.human(), confidence: 0.9, needsHuman: true };
 
     case 'logistics':
       return {
-        reply: fromKnowledge
-          ? fromKnowledge
-          : `Let me check the details on shipping and pickup for you — a teammate will confirm shortly.`,
+        reply: fromKnowledge || t.logistics(),
         confidence: fromKnowledge ? 0.6 : 0.4,
         needsHuman: !fromKnowledge,
       };
 
     case 'support':
       return {
-        reply: fromKnowledge
-          ? fromKnowledge
-          : `Let's sort that out. Could you tell me a bit more about what's happening so I can point you to the right fix?`,
+        reply: fromKnowledge || t.support(),
         confidence: fromKnowledge ? 0.6 : 0.45,
         needsHuman: false,
       };
 
     case 'goodbye':
-      return {
-        reply: `Thanks for chatting with ${businessName} — ${tone} as always. Talk soon! 🙌`,
-        confidence: 0.7,
-        needsHuman: false,
-      };
+      return { reply: t.goodbye(businessName, tone), confidence: 0.7, needsHuman: false };
 
     default:
       return {
-        reply: fromKnowledge
-          ? `${fromKnowledge}\n\nIs there anything else I can help you with?`
-          : `Thanks for your message! I've noted it down. Could you tell me a little more about what you need?`,
+        reply: fromKnowledge ? `${fromKnowledge}\n\n${t.anythingElse()}` : t.fallback(),
         confidence: fromKnowledge ? 0.5 : 0.35,
         needsHuman: !fromKnowledge && intent.sentiment < 0.4,
       };
