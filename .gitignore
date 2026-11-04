@@ -30,3 +30,7 @@ npm-debug.log*
 .idea
 .DS_Store
 *.swp
+
+# Python bytecode from the plugin runner
+__pycache__/
+*.pyc

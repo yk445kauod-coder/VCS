@@ -83,6 +83,10 @@ export function App() {
     const fromUrl = new URLSearchParams(window.location.search).get('token');
     if (fromUrl) {
       localStorage.setItem('duty_token', fromUrl);
+      // Drop the token from the address bar. It is kept in localStorage, and
+      // leaving it in the URL would write it into browser history and any
+      // referrer sent to third parties.
+      window.history.replaceState({}, '', window.location.pathname);
       return fromUrl;
     }
     return localStorage.getItem('duty_token') ?? '';

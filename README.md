@@ -2,9 +2,26 @@
 
 # Duty
 
-**An agentic revenue system for small businesses.**
-It answers customers on WhatsApp, chat, webhooks and MCP, captures the order,
-upsells it, closes it, and reports the money — on your own infrastructure.
+### The revenue system that answers your customers and closes the sale.
+
+Duty takes orders from WhatsApp, your website, a webhook, email or an MCP client —
+understands the customer, quotes the right product, **upsells it**, closes it,
+recovers the ones that stall, and reports the money.
+
+**One process. One database. Your infrastructure.**
+
+<br />
+
+[![Tests](https://img.shields.io/badge/tests-46%20passing-2ea043?style=flat-square)](#testing)
+[![License](https://img.shields.io/badge/license-MIT-3b82f6?style=flat-square)](LICENSE)
+[![No vendor lock-in](https://img.shields.io/badge/vendor%20lock--in-none-d97706?style=flat-square)](#bring-your-own-infrastructure)
+[![Runs without AI keys](https://img.shields.io/badge/AI%20key-optional-8b5cf6?style=flat-square)](#the-five-things-that-make-it-different)
+
+<br />
+
+<img src="docs/screenshots/hero.png" alt="Duty dashboard: revenue overview beside a live customer transcript" width="100%" />
+
+<sub><b>Left:</b> the revenue ledger — pipeline, upsell lift, win rate. <b>Right:</b> a real conversation, answered and closed by the agent.</sub>
 
 </div>
 
@@ -14,22 +31,31 @@ upsells it, closes it, and reports the money — on your own infrastructure.
 
 A customer messages your business. Duty:
 
-1. **Understands** the message — intent, sentiment, which product they mean — in
-   English and Arabic, with a deterministic brain that works with **no AI key at all**.
-2. **Answers** using your catalogue, your policies and a business profile it learns
+1. **Understands** the message — intent, sentiment, and *which product they mean* —
+   in English and Arabic, using a deterministic brain that works with **no AI key at all**.
+2. **Answers** from your catalogue, your policies, and a business profile it learns
    from your website or your own files.
 3. **Creates the order** in your database and estimates how likely it is to close.
-4. **Upsells** it — every product can carry rules (bundle, cross-sell, upgrade,
-   quantity, renewal, win-back) and Duty pitches the one with the highest expected value.
-5. **Confirms and closes** it when the customer says yes, and hands to a human when
+4. **Upsells it.** Every product can carry rules — bundle, cross-sell, upgrade,
+   quantity, renewal, win-back — and Duty pitches the one with the highest expected value.
+5. **Confirms and closes** when the customer says yes, and **hands to a human** when
    the message is a refund, a complaint, or simply too uncertain.
 6. **Recovers** abandoned carts on a schedule.
 7. **Reports** revenue, funnel, upsell lift and pipeline — as numbers and as prose.
 8. **Mirrors** every outbound message to your own webhook if you want it in Zapier,
-   n8n or your CRM.
+   n8n, or your CRM.
 
-It is one process, one database, and a dashboard. No vendor lock-in: bring your own
-database, your own AI key, your own server.
+<br />
+
+<div align="center">
+
+### Conversations it can hold, and close
+
+<img src="docs/screenshots/transcript.png" alt="A customer conversation with the agent's decisions and actions" width="100%" />
+
+<sub>Every reply carries the reasoning: which intent was detected, which actions ran, what was upsold.</sub>
+
+</div>
 
 ## The five things that make it different
 
@@ -52,9 +78,9 @@ npm run build                 # build the dashboard
 npm start                     # http://localhost:8787/?token=<ADMIN_TOKEN>
 ```
 
-That is a working system with a demo coffee roaster: five products with upsell
-rules, three knowledge documents, customers, conversations, paid orders, and a
-revenue report. Talk to the live agent from the **Playground** tab.
+That gives you a working system with a demo coffee roaster: five products with
+upsell rules, three knowledge documents, customers, conversations, paid orders,
+and a revenue report. Talk to the live agent from the **Playground** tab.
 
 ### Send it a message
 
@@ -77,7 +103,18 @@ curl -X POST http://localhost:8787/webhooks/inbound \
 ```
 
 Reply `confirm` and the order moves to `pending`. Reply `yes` and the upsell is
-added to the same order.
+added to the same order — one message, two sales.
+
+<div align="center">
+
+### The money, and the machine that makes it
+
+<img src="docs/screenshots/analytics.png" alt="Analytics: funnel, revenue report and daily brief" width="49%" />
+<img src="docs/screenshots/settings.png" alt="Settings: business profile, storage, channels, widget and MCP" width="49%" />
+
+<sub><b>Left:</b> funnel, report generation, emailable daily brief. <b>Right:</b> the whole runtime — storage, AI, channels, widget and MCP — in one place.</sub>
+
+</div>
 
 ## Architecture
 
@@ -96,6 +133,10 @@ added to the same order.
                                          ▼
                           dashboard · REST API · SSE · reports
 ```
+
+The load-bearing idea: **channels normalise to one `InboundMessage`, storage hides
+behind one `Store` contract.** Everything between them is business logic that
+never learns which database or which messenger you chose.
 
 Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
@@ -129,25 +170,28 @@ Duty reads these at boot and picks the matching adapter. See
 ## Dashboard
 
 Ten screens, one design language: a warm graphite "revenue ledger" with an ember
-accent, editorial display type and tabular data.
+accent, editorial display type, tabular data, and self-hosted fonts — no CDN, no
+tracking, nothing loaded from anyone else's server.
 
-- **Overview** — revenue, pipeline, upsell lift, conversion, what needs a human
-- **Analytics** — funnel, 30-day report generation, emailable daily brief
-- **Orders** — every cart with its win probability and upsell outcome
-- **Conversations** — full transcripts, live updates, reply as a human
-- **Customers** — lifetime value, tags, per-customer order history
-- **Catalogue** — products and the upsell rules attached to each
-- **Automations** — cart recovery and the daily brief, run on demand
-- **Knowledge** — crawl a website, upload files, paste policies and FAQs
-- **Playground** — talk to the live agent and watch its decisions
-- **Settings** — business profile, runtime, webhooks, widget, MCP
+| Screen | What it shows |
+| --- | --- |
+| **Overview** | Revenue, pipeline, upsell lift, conversion, what needs a human |
+| **Analytics** | Funnel, 30-day report generation, emailable daily brief |
+| **Orders** | Every cart with its win probability and upsell outcome |
+| **Conversations** | Full transcripts, live updates, reply as a human |
+| **Customers** | Lifetime value, tags, per-customer order history |
+| **Catalogue** | Products and the upsell rules attached to each |
+| **Automations** | Cart recovery and the daily brief, run on demand |
+| **Knowledge** | Crawl a website, upload files, paste policies and FAQs |
+| **Playground** | Talk to the live agent and watch its decisions |
+| **Settings** | Business profile, runtime, webhooks, widget, MCP |
 
 ## Channels
 
 | Channel | How |
 | --- | --- |
 | **WhatsApp** | Point the Meta Cloud API webhook at `POST /webhooks/whatsapp` (verification handled). Any bridge that posts the same shape works. |
-| **Web chat** | Add one line to any site: `<script src="https://your-duty/widget/duty-widget.js" async></script>` |
+| **Web chat** | Add one line to any site: `<script src="https://your-duty/widget/duty-widget.js" async></script>`. The widget is zero-dependency and renders inside a **Shadow DOM**, so a host page's CSS cannot break it. |
 | **Webhook** | `POST /webhooks/inbound` with an optional HMAC signature. Use it for anything. |
 | **Email** | Set `SMTP_URL`; replies go back out on the same thread. |
 | **MCP** | `node --import tsx src/mcp/stdio.ts` — Claude Desktop, Cursor or any MCP client can read the catalogue, create orders and generate reports. |
@@ -171,10 +215,25 @@ curl -X POST "${OPENHANDS_HOST}/api/automation/v1/plugin-spec" \
   }'
 ```
 
+## Security
+
+The request surface was audited end to end; the fixes are covered by tests.
+
+- **No SSRF.** Tenant-supplied URLs (website ingestion, webhook delivery) are
+  resolved and rejected if they point at loopback, private, link-local, CGNAT or
+  cloud-metadata addresses — including IPv4-mapped IPv6 forms — and **every redirect
+  hop is re-checked**, because `fetch` follows redirects by default.
+- **Credentials stay out of URLs.** The admin token is header-only, with one
+  documented exception for the SSE stream, where `EventSource` cannot set headers.
+- **The public endpoints are rate-limited.** `/api/webchat/message` runs the agent
+  on every call, so it is capped per IP and returns `429` with `Retry-After`.
+- **Tenant-scoped reads.** Conversation and history lookups are keyed by tenant,
+  not by session id alone.
+
 ## Testing
 
 ```bash
-npm test        # 34 tests: storage, intents (EN + AR), agent flows, upsell, analytics
+npm test        # 46 tests: storage, intents (EN + AR), agent flows, upsell, analytics, security
 npm run typecheck
 ```
 
@@ -185,7 +244,7 @@ with no mocks.
 
 ```
 src/
-  core/         config, types, ids, logger, errors, money, event bus
+  core/         config, types, ids, logger, errors, money, event bus, net guard, rate limiter
   storage/      Store contract + sqlite · postgres · supabase · firebase · memory
   ai/           providers, embeddings, knowledge, deterministic brain, agent loop
   commerce/     catalog, orders, upsell engine, analytics, follow-ups
@@ -201,3 +260,8 @@ test/           node:test suites
 ## License
 
 MIT.
+
+<div align="center">
+<br />
+<sub>Built to be owned, not rented.</sub>
+</div>
