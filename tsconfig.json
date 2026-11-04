@@ -1,29 +1,24 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "skipLibCheck": true,
-    "types": [
-      "node"
-    ],
-    "moduleResolution": "bundler",
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "allowJs": true,
+    "moduleResolution": "Bundler",
+    "types": ["node"],
     "jsx": "react-jsx",
-    "paths": {
-      "@/*": [
-        "./*"
-      ]
-    },
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noEmit": true,
     "allowImportingTsExtensions": true,
-    "noEmit": true
-  }
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@web/*": ["web/*"]
+    }
+  },
+  "include": ["src", "web", "test", "scripts", "vite.config.ts"]
 }

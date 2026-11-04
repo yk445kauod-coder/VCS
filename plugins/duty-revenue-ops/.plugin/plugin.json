@@ -1,0 +1,58 @@
+{
+  "name": "duty-revenue-ops",
+  "version": "0.1.0",
+  "description": "Deterministic revenue operations for a Duty instance: recover abandoned carts and deliver the daily revenue brief. No LLM required.",
+  "automation": {
+    "schema_version": "openhands.automation.plugin.v1",
+    "entrypoint": {
+      "runner": "script",
+      "command": "python3 scripts/main.py"
+    },
+    "config_schema": {
+      "type": "object",
+      "required": ["duty_url"],
+      "additionalProperties": false,
+      "properties": {
+        "duty_url": {
+          "type": "string",
+          "description": "Base URL of the Duty instance, e.g. https://duty.your-company.com"
+        },
+        "admin_token_secret": {
+          "type": "string",
+          "default": "DUTY_ADMIN_TOKEN",
+          "description": "Name of the stored secret that holds the Duty ADMIN_TOKEN"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["followups", "daily-report", "both"],
+          "default": "both"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview follow-ups without messaging customers"
+        },
+        "min_probability": {
+          "type": "number",
+          "default": 0.2,
+          "description": "Only chase draft orders whose win probability is at least this"
+        },
+        "older_than_minutes": {
+          "type": "integer",
+          "default": 60,
+          "description": "Only chase carts idle for at least this long"
+        },
+        "report_days": { "type": "integer", "default": 1 },
+        "report_email": {
+          "type": "string",
+          "description": "Optional address to email the brief to (needs SMTP_URL on Duty)"
+        }
+      }
+    },
+    "suggested_trigger_template": {
+      "type": "cron",
+      "schedule": "0 * * * *",
+      "timezone": "UTC"
+    }
+  }
+}
