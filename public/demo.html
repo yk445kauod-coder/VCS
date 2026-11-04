@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Duty — live demo</title>
+    <meta name="description" content="A working Duty storefront: the web-chat widget, the inbound webhook, and the dashboard behind them." />
+
+    <style>
+      /* Self-hosted, like the dashboard — nothing loads from a CDN. */
+      @font-face {
+        font-family: 'Fraunces';
+        src: url('/fonts/fraunces-latin.woff2') format('woff2');
+        font-weight: 100 900;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Instrument Sans';
+        src: url('/fonts/instrument-sans-latin.woff2') format('woff2');
+        font-weight: 100 900;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'JetBrains Mono';
+        src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2');
+        font-weight: 100 900;
+        font-display: swap;
+      }
+
+      :root {
+        --void: #0b0c0e;
+        --ink: #121316;
+        --ink-2: #17191d;
+        --ink-3: #1e2126;
+        --line: #2a2e35;
+        --line-soft: #21242a;
+        --chalk: #f4f1ea;
+        --chalk-dim: #a8a49b;
+        --chalk-faint: #6f6c66;
+        --ember: #ff5b1f;
+        --ember-soft: #ff8a5c;
+        --ember-wash: rgba(255, 91, 31, 0.12);
+        --brass: #d9a44a;
+        --moss: #57c08a;
+        --moss-wash: rgba(87, 192, 138, 0.13);
+        --danger: #f2555a;
+        --sky: #6ba8ff;
+        --display: 'Fraunces', 'Noto Sans Arabic', Georgia, serif;
+        --sans: 'Instrument Sans', 'Noto Sans Arabic', system-ui, sans-serif;
+        --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+        --radius: 3px;
+        --radius-lg: 6px;
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: smooth; }
+
+      body {
+        margin: 0;
+        background: var(--void);
+        color: var(--chalk);
+        font-family: var(--sans);
+        font-size: 16px;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a { color: var(--ember-soft); }
+
+      :focus-visible {
+        outline: 2px solid var(--ember);
+        outline-offset: 2px;
+        border-radius: 2px;
+      }
+
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+      /* ---------------------------------------------------------- top strip */
+      .top {
+        border-bottom: 1px solid var(--line-soft);
+        background: linear-gradient(180deg, rgba(255, 91, 31, 0.05), transparent);
+      }
+      .top-inner {
+        display: flex; align-items: center; gap: 14px;
+        padding: 16px 0; flex-wrap: wrap;
+      }
+      .mark {
+        width: 30px; height: 30px; border-radius: var(--radius);
+        background: var(--ember); color: #160a04;
+        display: grid; place-items: center;
+        font-family: var(--display); font-weight: 700; font-size: 17px;
+      }
+      .wordmark { font-family: var(--display); font-size: 19px; letter-spacing: -0.01em; }
+      .tag {
+        font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+        letter-spacing: 0.14em; color: var(--chalk-faint);
+      }
+      .spacer { flex: 1; }
+
+      .pill {
+        font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+        border: 1px solid var(--line); border-radius: 999px;
+        padding: 5px 11px; color: var(--chalk-dim);
+        text-decoration: none; white-space: nowrap;
+      }
+      .pill:hover { border-color: var(--ember); color: var(--chalk); }
+      .pill.live { border-color: rgba(87, 192, 138, 0.4); color: var(--moss); }
+      .dot {
+        display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+        background: var(--moss); margin-right: 6px; vertical-align: 1px;
+      }
+
+      /* -------------------------------------------------------------- hero */
+      .hero { padding: 64px 0 44px; }
+      .eyebrow {
+        font-family: var(--mono); font-size: 12px; text-transform: uppercase;
+        letter-spacing: 0.18em; color: var(--ember); margin-bottom: 18px;
+      }
+      h1 {
+        font-family: var(--display); font-weight: 600;
+        font-size: clamp(34px, 5.4vw, 60px); line-height: 1.04;
+        letter-spacing: -0.025em; margin: 0 0 20px; max-width: 17ch;
+      }
+      h1 em { font-style: italic; color: var(--ember); }
+      .lede { font-size: 18px; color: var(--chalk-dim); max-width: 60ch; margin: 0 0 30px; }
+
+      .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+      .btn {
+        font-family: var(--sans); font-size: 15px; font-weight: 500;
+        border: 0; border-radius: var(--radius); cursor: pointer;
+        padding: 12px 20px; text-decoration: none; display: inline-block;
+      }
+      .btn-primary { background: var(--ember); color: #160a04; }
+      .btn-primary:hover { background: var(--ember-soft); }
+      .btn-ghost {
+        background: transparent; color: var(--chalk);
+        border: 1px solid var(--line);
+      }
+      .btn-ghost:hover { border-color: var(--ember); }
+
+      /* ------------------------------------------------------------ layout */
+      section { padding: 52px 0; border-top: 1px solid var(--line-soft); }
+      h2 {
+        font-family: var(--display); font-weight: 600; font-size: 30px;
+        letter-spacing: -0.02em; margin: 0 0 8px;
+      }
+      .sub { color: var(--chalk-dim); margin: 0 0 30px; max-width: 68ch; }
+      .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+      @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+
+      .card {
+        background: var(--ink-2); border: 1px solid var(--line);
+        border-radius: var(--radius-lg); padding: 22px;
+      }
+      .card h3 {
+        font-family: var(--display); font-size: 19px; font-weight: 600;
+        margin: 0 0 6px; letter-spacing: -0.01em;
+      }
+      .card p { color: var(--chalk-dim); font-size: 15px; margin: 0 0 16px; }
+
+      code, pre { font-family: var(--mono); }
+      code {
+        font-size: 13px; background: var(--ink-3);
+        padding: 2px 6px; border-radius: var(--radius); color: var(--ember-soft);
+      }
+      pre {
+        background: var(--ink); border: 1px solid var(--line);
+        border-radius: var(--radius); padding: 16px;
+        overflow-x: auto; font-size: 12.5px; line-height: 1.65;
+        color: var(--chalk-dim); margin: 0;
+      }
+      pre .k { color: var(--sky); }
+      pre .s { color: var(--moss); }
+      pre .c { color: var(--chalk-faint); font-style: italic; }
+
+      /* --------------------------------------------------------- products */
+      .grid {
+        display: grid; gap: 16px;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      }
+      .product {
+        background: var(--ink-2); border: 1px solid var(--line);
+        border-radius: var(--radius-lg); padding: 18px;
+        display: flex; flex-direction: column; gap: 4px;
+      }
+      .product .cat {
+        font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+        letter-spacing: 0.14em; color: var(--chalk-faint);
+      }
+      .product .name {
+        font-family: var(--display); font-size: 18px; font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .product .desc { color: var(--chalk-dim); font-size: 13.5px; flex: 1; }
+      .product .price {
+        font-family: var(--mono); font-size: 16px; color: var(--brass);
+        margin-top: 10px;
+      }
+      .ask {
+        margin-top: 12px; font-size: 13px; padding: 8px 12px;
+        background: var(--ember-wash); color: var(--ember-soft);
+        border: 1px solid rgba(255, 91, 31, 0.3); border-radius: var(--radius);
+        cursor: pointer; font-family: var(--sans);
+      }
+      .ask:hover { background: rgba(255, 91, 31, 0.2); }
+
+      /* ------------------------------------------------------------ steps */
+      ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; }
+      ol.steps li {
+        counter-increment: s; position: relative;
+        padding: 0 0 20px 46px; border-left: 1px solid var(--line);
+        margin-left: 13px;
+      }
+      ol.steps li:last-child { border-left-color: transparent; padding-bottom: 0; }
+      ol.steps li::before {
+        content: counter(s); position: absolute; left: -13px; top: -2px;
+        width: 26px; height: 26px; border-radius: 50%;
+        background: var(--ink-3); border: 1px solid var(--line);
+        color: var(--ember); display: grid; place-items: center;
+        font-family: var(--mono); font-size: 12px;
+      }
+      ol.steps strong { display: block; margin-bottom: 3px; }
+      ol.steps span { color: var(--chalk-dim); font-size: 15px; }
+
+      table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+      th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line-soft); }
+      th {
+        font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+        letter-spacing: 0.12em; color: var(--chalk-faint); font-weight: 500;
+      }
+      td { color: var(--chalk-dim); }
+      td:first-child { color: var(--chalk); }
+
+      footer {
+        border-top: 1px solid var(--line-soft); padding: 34px 0 90px;
+        color: var(--chalk-faint); font-size: 14px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        * { transition: none !important; animation: none !important; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="top">
+      <div class="wrap top-inner">
+        <div class="mark">D</div>
+        <div>
+          <div class="wordmark">Duty</div>
+          <div class="tag">Live demo storefront</div>
+        </div>
+        <div class="spacer"></div>
+        <span class="pill live"><span class="dot"></span>system online</span>
+        <a class="pill" href="/">Dashboard →</a>
+      </div>
+    </div>
+
+    <div class="wrap hero">
+      <div class="eyebrow">Agentic revenue system</div>
+      <h1>This storefront is wired to a <em>live</em> agent.</h1>
+      <p class="lede">
+        Everything on this page is the real product. The chat bubble is the embeddable
+        widget running against the live API. The products below come from the same
+        catalogue the agent sells from. Open the chat and try to buy something —
+        it will open an order, pitch an upsell, and take payment instructions.
+      </p>
+      <div class="cta">
+        <button class="btn btn-primary" id="open-chat">Open the chat →</button>
+        <a class="btn btn-ghost" href="/">See the dashboard</a>
+      </div>
+    </div>
+
+    <section>
+      <div class="wrap">
+        <h2>Try these, in this order</h2>
+        <p class="sub">
+          The agent classifies intent, prices from the catalogue, opens a draft order,
+          then pitches the highest-value upsell. Reply in Arabic and it answers in Arabic.
+        </p>
+        <div class="cols">
+          <ol class="steps">
+            <li><strong>Ask for a price</strong><span>“How much is the Ethiopia Yirgacheffe?”</span></li>
+            <li><strong>Place an order</strong><span>“I want to order two bags of Ethiopian beans”</span></li>
+            <li><strong>Accept the upsell</strong><span>“yes” — the subscription is added to the same order</span></li>
+            <li><strong>Close it</strong><span>“confirm” — the order moves to pending payment</span></li>
+            <li><strong>Switch language</strong><span>“مرحبا” then “أريد أن أشتري القهوة”</span></li>
+            <li><strong>Escalate</strong><span>“this is unacceptable, it is late” — routed to a human</span></li>
+          </ol>
+          <div class="card">
+            <h3>What to watch</h3>
+            <p>
+              Every reply in the dashboard carries the decision behind it: the detected
+              intent, the order it opened, and the upsell it offered.
+            </p>
+            <pre><span class="c">// POST /webhooks/inbound</span>
+{
+  <span class="k">"channel"</span>: <span class="s">"whatsapp"</span>,
+  <span class="k">"externalId"</span>: <span class="s">"+15550001111"</span>,
+  <span class="k">"text"</span>: <span class="s">"I want to order two bags of
+            Ethiopian beans"</span>
+}
+
+<span class="c">// → 200</span>
+{
+  <span class="k">"intent"</span>: <span class="s">"order_intent"</span>,
+  <span class="k">"reply"</span>: <span class="s">"Great choice — Ethiopia
+     Yirgacheffe 250g is $18.00…"</span>,
+  <span class="k">"actions"</span>: [
+    { <span class="k">"kind"</span>: <span class="s">"create_order"</span> },
+    { <span class="k">"kind"</span>: <span class="s">"offer_upsell"</span> }
+  ]
+}</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>The catalogue the agent sells from</h2>
+        <p class="sub">
+          Loaded from <code>GET /api/public/catalog</code> — the same rows the agent
+          quotes prices from. Click a product to ask about it in the chat.
+        </p>
+        <div class="grid" id="products">
+          <div class="product"><span class="cat">loading…</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Put this on your own site</h2>
+        <p class="sub">
+          The widget is zero-dependency and renders inside a Shadow DOM, so your CSS
+          cannot break it and it cannot leak styles back into your page.
+        </p>
+        <pre>&lt;script src="<span class="s">https://your-duty.example/widget/duty-widget.js</span>" async&gt;&lt;/script&gt;</pre>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Or drive it without a browser</h2>
+        <p class="sub">
+          Every channel reduces to the same message shape. This is the exact call the
+          steps above make, if you would rather use curl.
+        </p>
+        <pre>curl -X POST <span class="s">$DUTY_URL/webhooks/inbound</span> \
+  -H <span class="s">'content-type: application/json'</span> \
+  -d <span class="s">'{"channel":"whatsapp","externalId":"+15550001111",
+       "text":"I want to order two bags of Ethiopian beans"}'</span></pre>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        Duty — self-hosted, bring your own database and model.
+        This page is served by the same process as the API, so it is a live
+        integration test, not a mockup.
+      </div>
+    </footer>
+
+    <!-- The real widget, exactly as a customer would embed it. -->
+    <script src="/widget/duty-widget.js" data-greeting="Hi! I'm the Atlas Coffee Roasters assistant. Ask me for a price, or say you want to order something." async></script>
+
+    <script>
+      (function () {
+        'use strict';
+
+        // The launcher lives inside the widget's shadow root, so reach it by
+        // clicking the same pixel a customer would.
+        var launcher = document.querySelector('script[src*="duty-widget"]');
+        function openWidget() {
+          var host = document.querySelector('[data-duty-widget], .duty-widget-host');
+          var btn = host && host.shadowRoot && host.shadowRoot.querySelector('button');
+          if (btn) { btn.click(); return true; }
+          // Fallback: the widget's launcher is fixed bottom-right.
+          var all = document.querySelectorAll('body > div > button');
+          for (var i = 0; i < all.length; i++) {
+            var r = all[i].getBoundingClientRect();
+            if (r.width > 40 && r.width < 70 && r.bottom > window.innerHeight - 100) {
+              all[i].click(); return true;
+            }
+          }
+          return false;
+        }
+
+        document.getElementById('open-chat').addEventListener('click', function () {
+          if (!openWidget()) {
+            alert('The chat launcher is the round button in the bottom-right corner.');
+          }
+        });
+
+        // Ask about a product by clicking it: focus the widget's input and type.
+        function askAbout(text) {
+          openWidget();
+          setTimeout(function () {
+            var inputs = document.querySelectorAll('body > div > div input, body > div > div textarea');
+            var input = null;
+            for (var i = 0; i < inputs.length; i++) {
+              var r = inputs[i].getBoundingClientRect();
+              if (r.width > 100) { input = inputs[i]; break; }
+            }
+            if (!input) return;
+            input.focus();
+            var setter = Object.getOwnPropertyDescriptor(
+              input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,
+              'value'
+            ).set;
+            setter.call(input, text);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            var form = input.closest('form');
+            if (form) {
+              form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            } else {
+              input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+            }
+          }, 260);
+        }
+
+        // Populate the catalogue from the live public API.
+        fetch('/api/public/catalog?limit=12')
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var items = data.items || data.products || (Array.isArray(data) ? data : []);
+            var box = document.getElementById('products');
+            if (!items.length) { box.innerHTML = '<div class="product"><span class="cat">no products</span></div>'; return; }
+            box.innerHTML = '';
+            items.forEach(function (p) {
+              var price = typeof p.price === 'number' ? p.price / 100 : Number(p.price || 0) / 100;
+              var card = document.createElement('div');
+              card.className = 'product';
+              var cat = document.createElement('span');
+              cat.className = 'cat'; cat.textContent = p.category || 'product';
+              var name = document.createElement('span');
+              name.className = 'name'; name.textContent = p.name;
+              var desc = document.createElement('span');
+              desc.className = 'desc'; desc.textContent = p.description || '';
+              var pr = document.createElement('span');
+              pr.className = 'price'; pr.textContent = '$' + price.toFixed(2);
+              var btn = document.createElement('button');
+              btn.className = 'ask'; btn.textContent = 'Ask about this →';
+              btn.addEventListener('click', function () {
+                askAbout('How much is the ' + p.name + '?');
+              });
+              card.appendChild(cat); card.appendChild(name);
+              card.appendChild(desc); card.appendChild(pr); card.appendChild(btn);
+              box.appendChild(card);
+            });
+          })
+          .catch(function () {
+            document.getElementById('products').innerHTML =
+              '<div class="product"><span class="cat">catalogue unavailable</span></div>';
+          });
+      })();
+    </script>
+  </body>
+</html>

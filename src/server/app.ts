@@ -133,6 +133,16 @@ export async function buildApp(runtime: Runtime): Promise<FastifyInstance> {
   registerPublicRoutes(app, runtime);
   registerAdminRoutes(app, runtime);
 
+  // A public storefront page that embeds the real widget, so the product can be
+  // exercised end to end in a browser without a token. Served before the SPA
+  // fallback, which would otherwise answer /demo with the dashboard shell.
+  const demoPath = path.resolve(process.cwd(), 'public/demo.html');
+  if (existsSync(demoPath)) {
+    app.get('/demo', async (_request, reply) =>
+      reply.type('text/html').send(readFileSync(demoPath)),
+    );
+  }
+
   const webDist = path.resolve(process.cwd(), 'web-dist');
   if (existsSync(webDist)) {
     await app.register(fastifyStatic, { root: webDist, prefix: '/', wildcard: false });
