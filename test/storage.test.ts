@@ -94,3 +94,40 @@ test('store persists across reconnects (sqlite)', async () => {
   await second.close();
   rmSync(dir, { recursive: true, force: true });
 });
+
+// Regression: count() used to delegate to list(), which windows its SQL at 1000 rows
+// so residual filters can run in JS. Past 1000 documents every analytics figure built
+// on count() silently froze at 1000. Counting must not share list()'s window.
+test('count() is exact past the 1000-row list window (sqlite)', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'duty-count-'));
+  const store = new SqliteStore(path.join(dir, 'count.sqlite'));
+  await store.init();
+  try {
+    const docs = Array.from({ length: 1100 }, (_, i) => product(`p${i}`, 't1', `S${i}`, `Item ${i}`));
+    for (let i = 0; i < docs.length; i += 100) {
+      await Promise.all(docs.slice(i, i + 100).map((d) => store.products.put(d as never)));
+    }
+
+    assert.equal(await store.products.count({ where: { tenantId: 't1' } }), 1100);
+    assert.equal(await store.products.count(), 1100);
+
+    // A residual filter still counts correctly, via the fallback path.
+    assert.equal(await store.products.count({ where: { tenantId: 't1', sku: 'S7' } }), 1);
+    assert.equal(await store.products.count({ where: { tenantId: 't1', sku: 'nope' } }), 0);
+
+    // And the windowed list() is still windowed.
+    assert.equal((await store.products.list({ where: { tenantId: 't1' } })).length, 1000);
+  } finally {
+    await store.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('count() is exact past the 1000-row list window (memory)', async () => {
+  const store = new MemoryStore();
+  await store.init();
+  const docs = Array.from({ length: 1100 }, (_, i) => product(`p${i}`, 't1', `S${i}`, `Item ${i}`));
+  for (const d of docs) await store.products.put(d as never);
+  assert.equal(await store.products.count({ where: { tenantId: 't1' } }), 1100);
+  assert.equal(await store.products.count({ where: { tenantId: 't1', sku: 'S7' } }), 1);
+});

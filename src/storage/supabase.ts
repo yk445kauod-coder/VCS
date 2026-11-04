@@ -46,6 +46,20 @@ class SupabaseRepository<T extends BaseDoc> implements Repository<T> {
   }
 
   async count(filter?: Filter<T>): Promise<number> {
+    // list() windows at 1000 rows, so counting through it stops growing past that.
+    // PostgREST can count server-side; only fall back to list() for residual filters.
+    const where = (filter?.where ?? {}) as Record<string, unknown>;
+    const pushdownKeys = new Set(['tenantId']);
+    const hasResidual = Object.entries(where).some(
+      ([key, value]) => value !== undefined && !pushdownKeys.has(key),
+    );
+    if (!hasResidual) {
+      let query = this.client.from(this.table).select('id', { count: 'exact', head: true });
+      if (typeof where.tenantId === 'string' && where.tenantId) query = query.eq('tenant_id', where.tenantId);
+      const { count, error } = await query;
+      if (error) throw new Error(`${this.table}.count: ${error.message}`);
+      return count ?? 0;
+    }
     return (await this.list({ ...filter, limit: 0, offset: 0 })).length;
   }
 

@@ -52,7 +52,37 @@ class PostgresRepository<T extends BaseDoc> implements Repository<T> {
   }
 
   async count(filter?: Filter<T>): Promise<number> {
-    return (await this.list({ ...filter, limit: 0, offset: 0 })).length;
+    // Counting must not go through list(), which caps the SQL window at 1000 rows
+    // so a residual filter can be applied in JS. Past that, count() would silently
+    // report 1000 forever — and every analytics figure is built on count().
+    const where = (filter?.where ?? {}) as Record<string, unknown>;
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    if (typeof where.tenantId === 'string' && where.tenantId) {
+      params.push(where.tenantId);
+      clauses.push(`tenant_id = $${params.length}`);
+    }
+    const whereSql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
+    // A tenantId-only filter is fully pushed down, so the database can count it.
+    const pushdownKeys = new Set(['tenantId']);
+    const hasResidual = Object.entries(where).some(
+      ([key, value]) => value !== undefined && !pushdownKeys.has(key),
+    );
+    if (!hasResidual) {
+      const { rows } = await this.pool.query(
+        `SELECT COUNT(*)::int AS n FROM ${this.table} ${whereSql}`,
+        params,
+      );
+      return rows[0].n as number;
+    }
+
+    // Residual keys are applied in JS, so every candidate row has to come back.
+    const { rows } = await this.pool.query(
+      `SELECT doc FROM ${this.table} ${whereSql} ORDER BY created_at DESC`,
+      params,
+    );
+    return applyFilter(rows.map((row) => row.doc as T), filter).length;
   }
 
   async put(entity: T): Promise<T> {

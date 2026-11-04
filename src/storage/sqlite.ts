@@ -43,6 +43,25 @@ class SqliteRepository<T extends BaseDoc> implements Repository<T> {
   }
 
   async count(filter?: Filter<T>): Promise<number> {
+    // list() caps its SQL window at 1000 rows so residual filters can be applied in
+    // JS; counting through it would report 1000 forever past that point. Every
+    // analytics figure is built on count(), so count in SQL when we can.
+    const where = filter?.where ?? {};
+    const pushdownKeys = new Set(['tenantId', 'id']);
+    const hasResidual = Object.entries(where).some(
+      ([key, value]) => value !== undefined && !pushdownKeys.has(key),
+    );
+    if (!hasResidual) {
+      const { sql, params } = this.buildQuery({ ...filter, limit: 0, offset: 0 });
+      const from = sql.slice(sql.indexOf('FROM'));
+      const tail = from.search(/ORDER BY/i);
+      const body = tail === -1 ? from : from.slice(0, tail);
+      // buildQuery appends LIMIT/OFFSET placeholders that the truncated statement no
+      // longer contains, so only pass the parameters its `?`s actually reference.
+      const used = (body.match(/\?/g) ?? []).length;
+      const row = this.db.prepare(`SELECT COUNT(*) AS n ${body}`).get(...params.slice(0, used)) as { n: number };
+      return Number(row.n);
+    }
     const rows = await this.list({ ...filter, limit: 0, offset: 0 });
     return rows.length;
   }
